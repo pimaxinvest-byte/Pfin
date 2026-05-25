@@ -591,7 +591,7 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
     <div class="ibex-header">
       <div>
         <div class="sec-title" style="margin-bottom:2px">📊 IBEX 35 Signals · TradingView</div>
-        <div class="ibex-note" id="ibex-note">Señales: 25 May 2026 · Precios: live via Stooq</div>
+        <div class="ibex-note" id="ibex-note">Señales: 25 May 2026 · Cargando precios…</div>
       </div>
       <div class="hz-bar">
         <button class="hz-btn active" onclick="setHz('5m',this)">⚡ Scalping 5min</button>
@@ -882,10 +882,13 @@ async function loadIbex() {
   try {
     const r = await fetch('/api/ibex');
     const d = await r.json();
-    if (d.prices) {
+    if (d.prices && Object.keys(d.prices).length > 0) {
       ibexPrices = d.prices;
       document.getElementById('ibex-note').textContent =
-        'Señales: 25 May 2026 (TradingView) · Precios: live · ' + (d.timestamp||'');
+        'Señales: 25 May 2026 (TradingView) · Precios: 🟢 live · ' + (d.timestamp||'');
+    } else {
+      document.getElementById('ibex-note').textContent =
+        'Señales: 25 May 2026 · Precios: 📅 cierre BME (25 May)';
     }
   } catch(e) {
     document.getElementById('ibex-note').textContent = 'Señales: 25 May 2026 · Precios: estáticos (Stooq no disponible)';
