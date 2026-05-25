@@ -690,7 +690,7 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
 </div>
 
 <footer>
-  <span data-i18n="footerLeft">Datos: Yahoo Finance · Finnhub · Stooq · Auto-refresh 60s</span>
+  <span data-i18n="footerLeft">Datos: Finnhub · TradingView Scanner · Auto-refresh 60s</span>
   <span><span class="footer-brand">Pietro Quantum Finance — PQF</span> &nbsp;·&nbsp; <span data-i18n="footerRight">Solo informativo</span></span>
 </footer>
 
@@ -700,7 +700,7 @@ const T = {
   es:{subtitle:'Live Market Intelligence',live:'EN VIVO',refresh:'⟳ Actualizar',loading:'Cargando…',
     top5title:'⭐ Top 5 Strong Buy — Consenso Analistas',moversTitle:'🔥 Market Movers — 72h',
     contextTitle:'📊 Contexto de Mercado',
-    footerLeft:'Fuente: Finnhub · Stooq · Auto-refresh 60s',footerRight:'Solo informativo',
+    footerLeft:'Fuente: Finnhub · TradingView Scanner · Auto-refresh 60s',footerRight:'Solo informativo',
     colStock:'Stock',colPrice:'Precio',colDay:'Día %',colCap:'Mkt Cap',colPE:'P/E',colDiv:'Div',colRange:'Rango 52S',
     movers:[
       {n:'1',c:'rgba(239,68,68,.2)',nc:'#f87171',title:'CPI Abril +3.8% YoY',
@@ -719,7 +719,7 @@ const T = {
   en:{subtitle:'Live Market Intelligence',live:'LIVE',refresh:'⟳ Refresh',loading:'Loading…',
     top5title:'⭐ Top 5 Strong Buy — Analyst Consensus',moversTitle:'🔥 Market Movers — 72h',
     contextTitle:'📊 Market Context',
-    footerLeft:'Source: Finnhub · Stooq · Auto-refresh 60s',footerRight:'For informational purposes only',
+    footerLeft:'Source: Finnhub · TradingView Scanner · Auto-refresh 60s',footerRight:'For informational purposes only',
     colStock:'Stock',colPrice:'Price',colDay:'Day %',colCap:'Mkt Cap',colPE:'P/E',colDiv:'Div',colRange:'52W Range',
     movers:[
       {n:'1',c:'rgba(239,68,68,.2)',nc:'#f87171',title:'April CPI +3.8% YoY',
@@ -738,7 +738,7 @@ const T = {
   it:{subtitle:'Mercati Finanziari in Diretta',live:'IN DIRETTA',refresh:'⟳ Aggiorna',loading:'Caricamento…',
     top5title:'⭐ Top 5 Forte Acquisto — Consenso Analisti',moversTitle:'🔥 Market Movers — 72h',
     contextTitle:'📊 Contesto di Mercato',
-    footerLeft:'Fonte: Finnhub · Stooq · Aggiornamento auto 60s',footerRight:'Solo a scopo informativo',
+    footerLeft:'Fonte: Finnhub · TradingView Scanner · Aggiornamento auto 60s',footerRight:'Solo a scopo informativo',
     colStock:'Titolo',colPrice:'Prezzo',colDay:'Giorno %',colCap:'Cap. Merc.',colPE:'P/E',colDiv:'Div',colRange:'Intervallo 52S',
     movers:[
       {n:'1',c:'rgba(239,68,68,.2)',nc:'#f87171',title:'CPI Aprile +3.8% annuo',
@@ -799,7 +799,7 @@ function fmtIdx(sym, p) {
 function cls(n) { return n > 0 ? 'up' : n < 0 ? 'dn' : 'flat'; }
 function arrow(n) { return n > 0 ? '▲' : n < 0 ? '▼' : ''; }
 
-// ══ Render indices (real values from Stooq) ═══════════════════
+// ══ Render indices (real values from TradingView Scanner) ═════
 function renderIndices(data) {
   if (!data || !data.length) {
     document.getElementById('indices').innerHTML = '<div class="idx-card"><div class="idx-name" style="color:var(--muted)">Índices no disponibles</div></div>';
@@ -1132,7 +1132,7 @@ setLang(currentLang);
 renderMovers();
 renderContext();
 loadGlobal();
-setInterval(loadGlobal, 60000);
+setInterval(() => { loadGlobal(); if (ibexLoaded) loadIbex(); }, 60000);
 </script>
 </body>
 </html>`
