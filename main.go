@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -54,9 +55,25 @@ type IndexQuote struct {
 	ChangePct float64 `json:"changePct"`
 }
 
-type IbexPrice struct {
-	P float64 `json:"p"`
-	C float64 `json:"c"`
+// ─── TradingView Scanner types ────────────────────────────────
+
+type TVStock struct {
+	Ticker string  `json:"ticker"`
+	Price  float64 `json:"price"`
+	Change float64 `json:"change"`
+	Rec    float64 `json:"rec"`   // Recommend.All (1D)
+	Rec5m  float64 `json:"rec5m"` // Recommend.All (5min)
+	RSI    float64 `json:"rsi"`
+	RSI5m  float64 `json:"rsi5m"`
+	MACD   float64 `json:"macd"`
+	BBU    float64 `json:"bbU"`
+	BBL    float64 `json:"bbL"`
+	EMA50  float64 `json:"ema50"`
+	EMA200 float64 `json:"ema200"`
+	VWAP   float64 `json:"vwap"`
+	Vol    float64 `json:"vol"`
+	H52    float64 `json:"h52"`
+	L52    float64 `json:"l52"`
 }
 
 // ─── Symbols ───────────────────────────────────────────────────
@@ -70,27 +87,34 @@ var symbolNames = map[string]string{
 
 var stooqIdxDefs = []struct{ sym, name string }{
 	{"^spx", "S&P 500"}, {"^dji", "Dow Jones"}, {"^ndx", "NASDAQ 100"},
-	{"^vix", "VIX"}, {"^rut", "Russell 2K"}, {"^ibex", "IBEX 35"},
-	{"xauusd", "Oro / Gold"}, {"cl.f", "WTI Crude"},
+	{"^ibex", "IBEX 35"}, {"xauusd", "Oro / Gold"}, {"cl.f", "WTI Crude"},
 }
 
-var ibexStooqSyms = "cabk.es,mts.es,acx.es,mrl.es,sab.es,idr.es,san.es,iag.es,bkt.es,bbva.es,fer.es,eng.es,scyr.es,col.es,log.es,ana.es,map.es,mel.es,ntgy.es,slr.es,acs.es,ibe.es,ane.es,tef.es,itx.es,ele.es,aena.es,clnx.es,rep.es,ams.es,red.es,grf.es,rovi.es,fdr.es,puig.es"
+var ibexTVTickers = []string{
+	"BME:CABK", "BME:MTS", "BME:ACX", "BME:MRL", "BME:SAB",
+	"BME:IDR", "BME:SAN", "BME:IAG", "BME:BKT", "BME:BBVA",
+	"BME:FER", "BME:ENG", "BME:SCYR", "BME:COL", "BME:LOG",
+	"BME:ANA", "BME:MAP", "BME:MEL", "BME:NTGY", "BME:SLR",
+	"BME:ACS", "BME:IBE", "BME:ANE", "BME:TEF", "BME:ITX",
+	"BME:ELE", "BME:AENA", "BME:CLNX", "BME:REP", "BME:AMS",
+	"BME:RED", "BME:GRF", "BME:ROVI", "BME:FDR", "BME:PUIG",
+}
 
-var ibexSymMap = map[string]string{
-	"CABK": "CABK", "MTS": "MTS", "ACX": "ACX", "MRL": "MRL", "SAB": "SAB",
-	"IDR": "IDR", "SAN": "SAN", "IAG": "IAG", "BKT": "BKT", "BBVA": "BBVA",
-	"FER": "FER", "ENG": "ENG", "SCYR": "SCYR", "COL": "COL", "LOG": "LOG",
-	"ANA": "ANA", "MAP": "MAP", "MEL": "MEL", "NTGY": "NTGY", "SLR": "SLR",
-	"ACS": "ACS", "IBE": "IBE", "ANE": "ANE", "TEF": "TEF", "ITX": "ITX",
-	"ELE": "ELE", "AENA": "AENA", "CLNX": "CLNX", "REP": "REP", "AMS": "AMS",
-	"RED": "RED", "GRF": "GRF", "ROVI": "ROVI", "FDR": "FDR", "PUIG": "PUIG",
+var tvColumns = []string{
+	"name", "close", "change",
+	"Recommend.All", "Recommend.All|5",
+	"RSI", "RSI|5",
+	"MACD.macd", "BB.upper", "BB.lower",
+	"EMA50", "EMA200", "VWAP",
+	"volume", "High.All", "Low.All",
 }
 
 // ─── HTTP clients ──────────────────────────────────────────────
 
 var finnhubKey string
 var fhCl    = &http.Client{Timeout: 10 * time.Second}
-var stooqCl = &http.Client{Timeout: 15 * time.Second}
+var stooqCl = &http.Client{Timeout: 8 * time.Second}
+var tvCl    = &http.Client{Timeout: 12 * time.Second}
 
 // ─── Finnhub ───────────────────────────────────────────────────
 
@@ -215,36 +239,81 @@ func fetchRealIndices() []IndexQuote {
 	return out
 }
 
-func fetchIbexPrices() map[string]IbexPrice {
-	syms := strings.Split(ibexStooqSyms, ",")
-	type res struct {
-		ticker string
-		ip     IbexPrice
+// ─── TradingView Scanner ────────────────────────────────────────
+// Live IBEX 35 data: price, change, RSI, MACD, BB, EMA, recommendation.
+// Works from any IP (Railway, cloud) — public scanner used by TV web app.
+
+func fetchIbexFromTV() []TVStock {
+	reqBody := map[string]interface{}{
+		"symbols": map[string]interface{}{
+			"tickers": ibexTVTickers,
+			"query":   map[string]interface{}{"types": []string{}},
+		},
+		"columns": tvColumns,
 	}
-	ch := make(chan res, len(syms))
-	sem := make(chan struct{}, 6) // max 6 concurrent Stooq requests
-	for _, sym := range syms {
-		go func(s string) {
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			p, c := stooqSingle(s)
-			raw := strings.ToUpper(s)
-			ticker := strings.TrimSuffix(raw, ".ES")
-			if t := ibexSymMap[ticker]; t != "" {
-				ticker = t
-			}
-			ch <- res{ticker, IbexPrice{P: p, C: c}}
-		}(sym)
+	body, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequest("POST", "https://scanner.tradingview.com/spain/scan", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://www.tradingview.com")
+	req.Header.Set("Referer", "https://www.tradingview.com/")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+
+	resp, err := tvCl.Do(req)
+	if err != nil {
+		fmt.Printf("[TV] %v\n", err)
+		return nil
 	}
-	prices := map[string]IbexPrice{}
-	for range syms {
-		r := <-ch
-		if r.ip.P > 0 {
-			prices[r.ticker] = r.ip
+	defer resp.Body.Close()
+
+	var result struct {
+		Data []struct {
+			S string        `json:"s"`
+			D []interface{} `json:"d"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		fmt.Printf("[TV] decode: %v\n", err)
+		return nil
+	}
+
+	toF := func(v interface{}) float64 {
+		if f, ok := v.(float64); ok {
+			return f
 		}
+		return 0
 	}
-	fmt.Printf("[Stooq IBEX] %d/%d prices fetched\n", len(prices), len(syms))
-	return prices
+
+	out := make([]TVStock, 0, len(result.Data))
+	for _, item := range result.Data {
+		d := item.D
+		if len(d) < 16 {
+			continue
+		}
+		price := toF(d[1])
+		if price == 0 {
+			continue
+		}
+		out = append(out, TVStock{
+			Ticker: strings.TrimPrefix(item.S, "BME:"),
+			Price:  price,
+			Change: toF(d[2]),
+			Rec:    toF(d[3]),
+			Rec5m:  toF(d[4]),
+			RSI:    toF(d[5]),
+			RSI5m:  toF(d[6]),
+			MACD:   toF(d[7]),
+			BBU:    toF(d[8]),
+			BBL:    toF(d[9]),
+			EMA50:  toF(d[10]),
+			EMA200: toF(d[11]),
+			VWAP:   toF(d[12]),
+			Vol:    toF(d[13]),
+			H52:    toF(d[14]),
+			L52:    toF(d[15]),
+		})
+	}
+	fmt.Printf("[TV] %d IBEX stocks\n", len(out))
+	return out
 }
 
 // ─── Handlers ──────────────────────────────────────────────────
@@ -278,15 +347,15 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 func ibexHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
-	prices := fetchIbexPrices()
-	if prices == nil {
-		prices = map[string]IbexPrice{}
+	stocks := fetchIbexFromTV()
+	if stocks == nil {
+		stocks = []TVStock{}
 	}
 	type P struct {
-		Prices    map[string]IbexPrice `json:"prices"`
-		Timestamp string               `json:"timestamp"`
+		Stocks    []TVStock `json:"stocks"`
+		Timestamp string    `json:"timestamp"`
 	}
-	json.NewEncoder(w).Encode(P{prices, time.Now().UTC().Format("Mon 02 Jan 2006 — 15:04:05 UTC")})
+	json.NewEncoder(w).Encode(P{stocks, time.Now().UTC().Format("Mon 02 Jan 2006 — 15:04:05 UTC")})
 }
 
 func htmlHandler(w http.ResponseWriter, r *http.Request) {
@@ -816,7 +885,16 @@ async function loadGlobal() {
 function refreshAll() { loadGlobal(); if (ibexLoaded) loadIbex(); }
 
 // ══ IBEX 35 DATA (TradingView signals — 25 May 2026) ══════════
-let ibexHz = '5m', ibexFilter = 'ALL', ibexPrices = {}, ibexLoaded = false;
+let ibexHz = '5m', ibexFilter = 'ALL', ibexLive = {}, ibexLoaded = false;
+
+// Convert TV Recommend.All score (-1..1) → signal label
+function recToSig(v) {
+  if (v >= 0.5)  return 'STRONG BUY';
+  if (v >= 0.1)  return 'BUY';
+  if (v > -0.1)  return 'NEUTRAL';
+  if (v > -0.5)  return 'SELL';
+  return 'STRONG SELL';
+}
 
 const IBEX = [{"ticker":"CABK","name":"CaixaBank SA","sym":"CABK","price":11.67,"sig5m":"STRONG BUY","rec5m":0.558,"rsi5m":71.2,"macdH5m":0.00239,"vwap":11.61,"bbU":11.673,"bbL":11.582,"chg5m":0.13,"vol_ratio":9.62,"vol_anom":true,"div5m":"confirmed_bull","sig1d":"STRONG BUY","rec1d":0.558,"rsi1d":71.8,"sig1w":"STRONG BUY","rec1w":0.603,"rsi1w":67.1,"sig1m":"STRONG BUY","rec1m":0.552,"sig2m":"STRONG BUY","conv2m":0.579,"chg1d":2.1,"perf1m":12.3,"perf3m":7.4,"rs1m":10.2,"rs3m":2.5,"h52":11.68,"l52":7.204,"pos52w":100,"ema50d":10.73,"ema200":9.79,"target2m":11.68,"stop2m":10.85,"upside":0.1,"rr":0.0},
 {"ticker":"MTS","name":"ArcelorMittal SA","sym":"MTS","price":57.9,"sig5m":"BUY","rec5m":0.467,"rsi5m":60.6,"macdH5m":-0.01181,"vwap":57.839,"bbU":57.977,"bbL":57.727,"chg5m":0.1,"vol_ratio":3.54,"vol_anom":true,"div5m":"","sig1d":"STRONG BUY","rec1d":0.512,"rsi1d":65.0,"sig1w":"STRONG BUY","rec1w":0.603,"rsi1w":69.2,"sig1m":"STRONG BUY","rec1m":0.603,"sig2m":"STRONG BUY","conv2m":0.576,"chg1d":2.12,"perf1m":13.6,"perf3m":2.4,"rs1m":11.5,"rs3m":-2.4,"h52":58.4,"l52":25.78,"pos52w":98,"ema50d":50.999,"ema200":42.75,"target2m":58.4,"stop2m":53.85,"upside":0.9,"rr":0.1},
@@ -862,12 +940,28 @@ function sigLabel(s) {
 }
 function rsiCol(r) { return r>=70?'var(--gold)':r<=30?'var(--blue)':'var(--text)'; }
 function chgCls(c) { return c>0?'up':c<0?'dn':'flat'; }
-function getSig(r) { return ibexHz==='5m' ? r.sig5m : r.sig2m; }
-function getRec(r) { return ibexHz==='5m' ? g(r.rec5m) : g(r.conv2m); }
-function getRsi(r) { return ibexHz==='5m' ? g(r.rsi5m) : g(r.rsi1w); }
+function getSig(r) {
+  const lv = ibexLive[r.ticker];
+  if (lv) return ibexHz==='5m' ? recToSig(lv.rec5m) : recToSig(lv.rec);
+  return ibexHz==='5m' ? r.sig5m : r.sig2m;
+}
+function getRec(r) {
+  const lv = ibexLive[r.ticker];
+  if (lv) return ibexHz==='5m' ? lv.rec5m : lv.rec;
+  return ibexHz==='5m' ? g(r.rec5m) : g(r.conv2m);
+}
+function getRsi(r) {
+  const lv = ibexLive[r.ticker];
+  if (lv) return ibexHz==='5m' ? (lv.rsi5m||lv.rsi) : lv.rsi;
+  return ibexHz==='5m' ? g(r.rsi5m) : g(r.rsi1w);
+}
+function getMacd(r) {
+  const lv = ibexLive[r.ticker];
+  return lv ? lv.macd : g(r.macdH5m);
+}
 function getChg(r) { return ibexHz==='5m' ? g(r.chg5m) : g(r.chg1d); }
-function livePrice(r) { return ibexPrices[r.ticker] ? ibexPrices[r.ticker].p : r.price; }
-function liveChg(r)   { return ibexPrices[r.ticker] ? ibexPrices[r.ticker].c : getChg(r); }
+function livePrice(r) { return ibexLive[r.ticker] ? ibexLive[r.ticker].price : r.price; }
+function liveChg(r)   { return ibexLive[r.ticker] ? ibexLive[r.ticker].change : getChg(r); }
 
 function setHz(hz, el) {
   ibexHz = hz;
@@ -882,16 +976,17 @@ async function loadIbex() {
   try {
     const r = await fetch('/api/ibex');
     const d = await r.json();
-    if (d.prices && Object.keys(d.prices).length > 0) {
-      ibexPrices = d.prices;
+    if (d.stocks && d.stocks.length > 0) {
+      ibexLive = {};
+      d.stocks.forEach(s => { ibexLive[s.ticker] = s; });
       document.getElementById('ibex-note').textContent =
-        'Señales: 25 May 2026 (TradingView) · Precios: 🟢 live · ' + (d.timestamp||'');
+        '🟢 Live · TradingView Scanner · ' + d.stocks.length + ' stocks · ' + (d.timestamp||'');
     } else {
       document.getElementById('ibex-note').textContent =
-        'Señales: 25 May 2026 · Precios: 📅 cierre BME (25 May)';
+        'Señales + precios: 📅 estáticos (25 May 2026)';
     }
   } catch(e) {
-    document.getElementById('ibex-note').textContent = 'Señales: 25 May 2026 · Precios: estáticos (Stooq no disponible)';
+    document.getElementById('ibex-note').textContent = 'TV Scanner no disponible · datos estáticos';
   }
   buildIbexAll();
 }
@@ -963,7 +1058,7 @@ function buildIbexCards(rows) {
     const sig=getSig(r), sc=sigClass(sig), rec=getRec(r), rsi=getRsi(r);
     const price=livePrice(r), chg=liveChg(r);
     const str=Math.min(Math.round(Math.abs(rec)*100),95);
-    const hasLive=!!ibexPrices[r.ticker];
+    const hasLive=!!ibexLive[r.ticker];
     const tags=[];
     if(sig==='STRONG BUY') tags.push('<span class="tag tg">💚 STRONG BUY</span>');
     else if(sig==='BUY')   tags.push('<span class="tag tg">🟢 BUY</span>');
@@ -984,8 +1079,9 @@ function buildIbexCards(rows) {
       +'<span class="sc-score">TV:'+(rec>0?'+':'')+rec.toFixed(2)+'</span></div>'
       +'<div class="sc-inds">'
       +'<div class="ind"><div class="ind-l">RSI</div><div class="ind-v" style="color:'+rsiCol(rsi)+'">'+rsi+'</div><div class="ind-s">'+(rsi>=70?'OB':rsi<=30?'OS':'OK')+'</div></div>'
-      +'<div class="ind"><div class="ind-l">MACD</div><div class="ind-v" style="color:'+(g(r.macdH5m)>0?'var(--green)':'var(--red))')+'">'+(g(r.macdH5m)>0?'▲':'▼')+'</div><div class="ind-s">'+g(r.macdH5m).toFixed(4)+'</div></div>'
-      +'<div class="ind"><div class="ind-l">Señal 1D</div><div class="ind-v" style="font-size:9px;color:'+(r.rec1d>0.1?'var(--green)':r.rec1d<-0.1?'var(--red)':'var(--muted)')+'">'+r.sig1d+'</div><div class="ind-s">'+g(r.rec1d).toFixed(2)+'</div></div>'
+      +(()=>{const m=getMacd(r);return'<div class="ind"><div class="ind-l">MACD</div><div class="ind-v" style="color:'+(m>0?'var(--green)':'var(--red)')+'">'+( m>0?'▲':'▼')+'</div><div class="ind-s">'+m.toFixed(4)+'</div></div>';})()
+      +(()=>{const lv=ibexLive[r.ticker];const rec1d=lv?lv.rec:g(r.rec1d);const sig1d=lv?recToSig(lv.rec):(r.sig1d||'');return'<div class="ind"><div class="ind-l">Señal 1D</div><div class="ind-v" style="font-size:9px;color:'+(rec1d>0.1?'var(--green)':rec1d<-0.1?'var(--red)':'var(--muted)')+'">'+sig1d+'</div><div class="ind-s">'+rec1d.toFixed(2)+'</div></div>';})()
+
       +'</div>'
       +'<div class="sc-tags">'+tags.join('')+'</div>'
       +'<a class="sc-tvlink" href="https://www.tradingview.com/chart/?symbol=BME%3A'+r.sym+'&interval='+tvInt+'" target="_blank">📊 TradingView '+(ibexHz==='5m'?'5min':'Semanal')+' →</a>'
@@ -1003,7 +1099,7 @@ function buildIbexTable() {
     const uC=r.upside>0?'var(--green)':'var(--red)';
     return '<tr>'
       +'<td style="font-weight:800;color:var(--pqf2)">'+r.ticker+'</td>'
-      +'<td style="font-family:monospace">€'+price.toFixed(3)+(ibexPrices[r.ticker]?' 🟢':'')+'</td>'
+      +'<td style="font-family:monospace">€'+price.toFixed(3)+(ibexLive[r.ticker]?' 🟢':'')+'</td>'
       +'<td class="'+(chg>0?'up':chg<0?'dn':'flat')+'" style="font-family:monospace">'+(chg>0?'+':'')+chg.toFixed(2)+'%</td>'
       +'<td><span class="dt" style="'+sigStyle+'">'+sig+'</span></td>'
       +'<td style="font-weight:700;color:'+(rec>0.1?'var(--green)':rec<-0.1?'var(--red)':'var(--muted)')+'">'+rec.toFixed(3)+'</td>'
