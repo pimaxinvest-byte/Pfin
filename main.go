@@ -54,30 +54,52 @@ func fetchQuotes(symbols []string) ([]YFQuote, error) {
 		}
 		joined += s
 	}
-	url := "https://query1.finance.yahoo.com/v7/finance/quote?symbols=" + joined +
-		"&fields=symbol,shortName,regularMarketPrice,regularMarketChange," +
+	fields := "symbol,shortName,regularMarketPrice,regularMarketChange," +
 		"regularMarketChangePercent,marketCap,regularMarketVolume," +
 		"fiftyTwoWeekHigh,fiftyTwoWeekLow,regularMarketOpen," +
 		"regularMarketDayHigh,regularMarketDayLow,averageDailyVolume3Month," +
 		"trailingPE,forwardPE,dividendYield,marketState"
 
-	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-	req.Header.Set("Accept", "application/json")
+	// Try query2 first (more permissive from cloud IPs), fall back to query1
+	hosts := []string{"query2.finance.yahoo.com", "query1.finance.yahoo.com"}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+	client := &http.Client{Timeout: 12 * time.Second}
 
-	body, _ := io.ReadAll(resp.Body)
-	var result YFResponse
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("parse error: %w", err)
+	for _, host := range hosts {
+		url := "https://" + host + "/v7/finance/quote?symbols=" + joined + "&fields=" + fields
+
+		req, _ := http.NewRequest("GET", url, nil)
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+		req.Header.Set("Accept", "application/json, text/plain, */*")
+		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+		req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+		req.Header.Set("Origin", "https://finance.yahoo.com")
+		req.Header.Set("Referer", "https://finance.yahoo.com/")
+		req.Header.Set("Sec-Fetch-Dest", "empty")
+		req.Header.Set("Sec-Fetch-Mode", "cors")
+		req.Header.Set("Sec-Fetch-Site", "same-site")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			fmt.Printf("[YF] %s error: %v\n", host, err)
+			continue
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Printf("[YF] %s status=%d body_len=%d\n", host, resp.StatusCode, len(body))
+
+		var result YFResponse
+		if err := json.Unmarshal(body, &result); err != nil {
+			fmt.Printf("[YF] parse error: %v\n", err)
+			continue
+		}
+		if len(result.QuoteResponse.Result) > 0 {
+			return result.QuoteResponse.Result, nil
+		}
+		fmt.Printf("[YF] %s returned 0 results\n", host)
 	}
-	return result.QuoteResponse.Result, nil
+	return nil, fmt.Errorf("all Yahoo Finance hosts returned no data")
 }
 
 // ─── API handler ──────────────────────────────────────────────
@@ -89,23 +111,31 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 	top5, err1    := fetchQuotes(top5Symbols)
 	indices, err2 := fetchQuotes(indexSymbols)
 
-	if err1 != nil || err2 != nil {
-		w.WriteHeader(500)
-		fmt.Fprintf(w, `{"error":"fetch failed"}`)
-		return
-	}
-
 	type Payload struct {
 		Top5      []YFQuote `json:"top5"`
 		Indices   []YFQuote `json:"indices"`
 		Timestamp string    `json:"timestamp"`
+		Error     string    `json:"error,omitempty"`
 	}
 
-	json.NewEncoder(w).Encode(Payload{
+	payload := Payload{
 		Top5:      top5,
 		Indices:   indices,
-		Timestamp: time.Now().Format("Mon 02 Jan 2006 — 15:04:05 MST"),
-	})
+		Timestamp: time.Now().UTC().Format("Mon 02 Jan 2006 — 15:04:05 UTC"),
+	}
+
+	if err1 != nil {
+		fmt.Printf("[API] top5 error: %v\n", err1)
+		payload.Error = err1.Error()
+		payload.Top5 = []YFQuote{}
+	}
+	if err2 != nil {
+		fmt.Printf("[API] indices error: %v\n", err2)
+		if payload.Error == "" { payload.Error = err2.Error() }
+		payload.Indices = []YFQuote{}
+	}
+
+	json.NewEncoder(w).Encode(payload)
 }
 
 // ─── HTML handler ─────────────────────────────────────────────
