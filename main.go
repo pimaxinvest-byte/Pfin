@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -14,29 +13,11 @@ import (
 	"time"
 )
 
-// ─── Finnhub types ─────────────────────────────────────────────
-
-type FHQuote struct {
-	C  float64 `json:"c"`
-	D  float64 `json:"d"`
-	Dp float64 `json:"dp"`
-}
-
-type FHMetrics struct {
-	Metric struct {
-		W52High  float64 `json:"52WeekHigh"`
-		W52Low   float64 `json:"52WeekLow"`
-		PE       float64 `json:"peAnnual"`
-		DivYield float64 `json:"dividendYieldIndicatedAnnual"`
-		MktCap   float64 `json:"marketCapitalization"`
-	} `json:"metric"`
-}
-
+// StockData — reused by JS renderTop5 (field names must stay stable)
 type StockData struct {
 	Symbol                     string  `json:"symbol"`
 	ShortName                  string  `json:"shortName"`
 	RegularMarketPrice         float64 `json:"regularMarketPrice"`
-	RegularMarketChange        float64 `json:"regularMarketChange"`
 	RegularMarketChangePercent float64 `json:"regularMarketChangePercent"`
 	MarketCap                  float64 `json:"marketCap"`
 	FiftyTwoWeekHigh           float64 `json:"fiftyTwoWeekHigh"`
@@ -75,13 +56,6 @@ type TVStock struct {
 
 // ─── Symbols ───────────────────────────────────────────────────
 
-var top5Symbols = []string{"NU", "T", "CCL", "SAN", "VG"}
-var symbolNames = map[string]string{
-	"NU": "Nu Holdings Ltd.", "T": "AT&T Inc.",
-	"CCL": "Carnival Corporation", "SAN": "Banco Santander SA",
-	"VG": "Vonage Holdings Corp.",
-}
-
 // TradingView Scanner symbols for global indices (works from any IP)
 var tvIdxDefs = []struct{ sym, name string }{
 	{"SP:SPX", "S&P 500"}, {"DJ:DJI", "Dow Jones"}, {"NASDAQ:NDX", "NASDAQ 100"},
@@ -110,60 +84,109 @@ var tvColumns = []string{
 
 // ─── HTTP clients ──────────────────────────────────────────────
 
-var finnhubKey string
-var fhCl = &http.Client{Timeout: 10 * time.Second}
 var tvCl = &http.Client{Timeout: 12 * time.Second}
 
-// ─── Finnhub ───────────────────────────────────────────────────
+// ─── TradingView helpers ────────────────────────────────────────
 
-func fhGet(path string, out interface{}) error {
-	req, _ := http.NewRequest("GET", "https://finnhub.io/api/v1"+path, nil)
-	req.Header.Set("X-Finnhub-Token", finnhubKey)
-	resp, err := fhCl.Do(req)
+func tvHeaders(req *http.Request) {
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://www.tradingview.com")
+	req.Header.Set("Referer", "https://www.tradingview.com/")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+}
+
+func toF(v interface{}) float64 {
+	if f, ok := v.(float64); ok {
+		return f
+	}
+	return 0
+}
+
+func toS(v interface{}) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+// ─── TradingView Top 5 US Strong Buy ──────────────────────────
+// Queries america/scan for the 5 highest-rated Strong Buy US stocks.
+// Replaces hardcoded Finnhub list with live screener data.
+
+func fetchTop5FromTV() []StockData {
+	reqBody := map[string]interface{}{
+		"filter": []map[string]interface{}{
+			{"left": "Recommend.All", "operation": "greater", "right": 0.5},
+			{"left": "market_cap_basic", "operation": "greater", "right": 2e9},
+			{"left": "close", "operation": "greater", "right": 5},
+			{"left": "volume", "operation": "greater", "right": 200000},
+		},
+		"sort":  map[string]interface{}{"sortBy": "Recommend.All", "sortOrder": "desc"},
+		"range": []int{0, 5},
+		"columns": []string{
+			"name", "close", "change",
+			"Recommend.All",
+			"market_cap_basic",
+			"price_earnings_ttm",
+			"dividends_yield_current",
+			"High.All", "Low.All",
+		},
+	}
+	body, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequest("POST", "https://scanner.tradingview.com/america/scan", bytes.NewReader(body))
+	tvHeaders(req)
+
+	resp, err := tvCl.Do(req)
 	if err != nil {
-		return err
+		fmt.Printf("[TV top5] %v\n", err)
+		return nil
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	return json.Unmarshal(body, out)
-}
 
-func fetchOne(sym string, withMeta bool) StockData {
-	sd := StockData{Symbol: sym, ShortName: symbolNames[sym]}
-	var q FHQuote
-	if fhGet("/quote?symbol="+sym, &q) == nil {
-		sd.RegularMarketPrice = q.C
-		sd.RegularMarketChange = q.D
-		sd.RegularMarketChangePercent = q.Dp
+	var result struct {
+		Data []struct {
+			S string        `json:"s"`
+			D []interface{} `json:"d"`
+		} `json:"data"`
 	}
-	if withMeta {
-		var m FHMetrics
-		if fhGet("/stock/metric?symbol="+sym+"&metric=all", &m) == nil {
-			sd.FiftyTwoWeekHigh = m.Metric.W52High
-			sd.FiftyTwoWeekLow = m.Metric.W52Low
-			sd.TrailingPE = m.Metric.PE
-			sd.DividendYield = m.Metric.DivYield / 100
-			sd.MarketCap = m.Metric.MktCap * 1e6
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		fmt.Printf("[TV top5] decode: %v\n", err)
+		return nil
+	}
+
+	out := make([]StockData, 0, 5)
+	for _, item := range result.Data {
+		if len(out) >= 5 {
+			break
 		}
+		d := item.D
+		if len(d) < 9 {
+			continue
+		}
+		price := toF(d[1])
+		if price == 0 {
+			continue
+		}
+		sym := item.S
+		if idx := strings.Index(sym, ":"); idx >= 0 {
+			sym = sym[idx+1:]
+		}
+		out = append(out, StockData{
+			Symbol:                     sym,
+			ShortName:                  toS(d[0]),
+			RegularMarketPrice:         price,
+			RegularMarketChangePercent: toF(d[2]),
+			MarketCap:                  toF(d[4]),
+			TrailingPE:                 toF(d[5]),
+			DividendYield:              toF(d[6]) / 100, // TV gives %, JS expects decimal
+			FiftyTwoWeekHigh:           toF(d[7]),
+			FiftyTwoWeekLow:            toF(d[8]),
+		})
 	}
-	return sd
-}
-
-func fetchGroup(syms []string, withMeta bool) []StockData {
-	out := make([]StockData, len(syms))
-	var wg sync.WaitGroup
-	for i, s := range syms {
-		wg.Add(1)
-		go func(idx int, sym string) {
-			defer wg.Done()
-			out[idx] = fetchOne(sym, withMeta)
-		}(i, s)
-	}
-	wg.Wait()
+	fmt.Printf("[TV top5] %d stocks\n", len(out))
 	return out
 }
 
-// ─── Stooq single-symbol fetch ─────────────────────────────────
 // ─── TradingView Scanner — Global Indices ──────────────────────
 // Uses TV Scanner (same as IBEX). Works from any cloud IP.
 // Replaces Stooq which blocks Railway datacenter IPs.
@@ -184,10 +207,7 @@ func fetchIndicesFromTV() []IndexQuote {
 	}
 	body, _ := json.Marshal(reqBody)
 	req, _ := http.NewRequest("POST", "https://scanner.tradingview.com/global/scan", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Origin", "https://www.tradingview.com")
-	req.Header.Set("Referer", "https://www.tradingview.com/")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+	tvHeaders(req)
 
 	resp, err := tvCl.Do(req)
 	if err != nil {
@@ -205,13 +225,6 @@ func fetchIndicesFromTV() []IndexQuote {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		fmt.Printf("[TV idx] decode: %v\n", err)
 		return nil
-	}
-
-	toF := func(v interface{}) float64 {
-		if f, ok := v.(float64); ok {
-			return f
-		}
-		return 0
 	}
 
 	var out []IndexQuote
@@ -264,10 +277,7 @@ func fetchIbexFromTV() []TVStock {
 	}
 	body, _ := json.Marshal(reqBody)
 	req, _ := http.NewRequest("POST", "https://scanner.tradingview.com/spain/scan", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Origin", "https://www.tradingview.com")
-	req.Header.Set("Referer", "https://www.tradingview.com/")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
+	tvHeaders(req)
 
 	resp, err := tvCl.Do(req)
 	if err != nil {
@@ -285,13 +295,6 @@ func fetchIbexFromTV() []TVStock {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		fmt.Printf("[TV] decode: %v\n", err)
 		return nil
-	}
-
-	toF := func(v interface{}) float64 {
-		if f, ok := v.(float64); ok {
-			return f
-		}
-		return 0
 	}
 
 	out := make([]TVStock, 0, len(result.Data))
@@ -332,16 +335,11 @@ func fetchIbexFromTV() []TVStock {
 func apiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
-	if finnhubKey == "" {
-		w.WriteHeader(503)
-		fmt.Fprintf(w, `{"error":"FINNHUB_API_KEY not set"}`)
-		return
-	}
 	var top5 []StockData
 	var indices []IndexQuote
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go func() { defer wg.Done(); top5 = fetchGroup(top5Symbols, true) }()
+	go func() { defer wg.Done(); top5 = fetchTop5FromTV() }()
 	go func() { defer wg.Done(); indices = fetchIndicesFromTV() }()
 	wg.Wait()
 	if indices == nil {
@@ -377,12 +375,6 @@ func htmlHandler(w http.ResponseWriter, r *http.Request) {
 // ─── Main ──────────────────────────────────────────────────────
 
 func main() {
-	finnhubKey = os.Getenv("FINNHUB_API_KEY")
-	if finnhubKey == "" {
-		fmt.Println("⚠️  FINNHUB_API_KEY not set")
-	} else {
-		fmt.Println("✅  Finnhub key loaded")
-	}
 	port := "8080"
 	if p := os.Getenv("PORT"); p != "" {
 		port = p
@@ -690,7 +682,7 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
 </div>
 
 <footer>
-  <span data-i18n="footerLeft">Datos: Finnhub · TradingView Scanner · Auto-refresh 60s</span>
+  <span data-i18n="footerLeft">Datos: TradingView Scanner · Auto-refresh 60s</span>
   <span><span class="footer-brand">Pietro Quantum Finance — PQF</span> &nbsp;·&nbsp; <span data-i18n="footerRight">Solo informativo</span></span>
 </footer>
 
@@ -700,7 +692,7 @@ const T = {
   es:{subtitle:'Live Market Intelligence',live:'EN VIVO',refresh:'⟳ Actualizar',loading:'Cargando…',
     top5title:'⭐ Top 5 Strong Buy — Consenso Analistas',moversTitle:'🔥 Market Movers — 72h',
     contextTitle:'📊 Contexto de Mercado',
-    footerLeft:'Fuente: Finnhub · TradingView Scanner · Auto-refresh 60s',footerRight:'Solo informativo',
+    footerLeft:'Fuente: TradingView Scanner · Auto-refresh 60s',footerRight:'Solo informativo',
     colStock:'Stock',colPrice:'Precio',colDay:'Día %',colCap:'Mkt Cap',colPE:'P/E',colDiv:'Div',colRange:'Rango 52S',
     movers:[
       {n:'1',c:'rgba(239,68,68,.2)',nc:'#f87171',title:'CPI Abril +3.8% YoY',
@@ -719,7 +711,7 @@ const T = {
   en:{subtitle:'Live Market Intelligence',live:'LIVE',refresh:'⟳ Refresh',loading:'Loading…',
     top5title:'⭐ Top 5 Strong Buy — Analyst Consensus',moversTitle:'🔥 Market Movers — 72h',
     contextTitle:'📊 Market Context',
-    footerLeft:'Source: Finnhub · TradingView Scanner · Auto-refresh 60s',footerRight:'For informational purposes only',
+    footerLeft:'Source: TradingView Scanner · Auto-refresh 60s',footerRight:'For informational purposes only',
     colStock:'Stock',colPrice:'Price',colDay:'Day %',colCap:'Mkt Cap',colPE:'P/E',colDiv:'Div',colRange:'52W Range',
     movers:[
       {n:'1',c:'rgba(239,68,68,.2)',nc:'#f87171',title:'April CPI +3.8% YoY',
@@ -738,7 +730,7 @@ const T = {
   it:{subtitle:'Mercati Finanziari in Diretta',live:'IN DIRETTA',refresh:'⟳ Aggiorna',loading:'Caricamento…',
     top5title:'⭐ Top 5 Forte Acquisto — Consenso Analisti',moversTitle:'🔥 Market Movers — 72h',
     contextTitle:'📊 Contesto di Mercato',
-    footerLeft:'Fonte: Finnhub · TradingView Scanner · Aggiornamento auto 60s',footerRight:'Solo a scopo informativo',
+    footerLeft:'Fonte: TradingView Scanner · Aggiornamento auto 60s',footerRight:'Solo a scopo informativo',
     colStock:'Titolo',colPrice:'Prezzo',colDay:'Giorno %',colCap:'Cap. Merc.',colPE:'P/E',colDiv:'Div',colRange:'Intervallo 52S',
     movers:[
       {n:'1',c:'rgba(239,68,68,.2)',nc:'#f87171',title:'CPI Aprile +3.8% annuo',
