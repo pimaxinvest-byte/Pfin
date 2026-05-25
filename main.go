@@ -8,98 +8,122 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"sync"
 	"time"
 )
 
-// ─── Yahoo Finance types ───────────────────────────────────────
+// ─── Finnhub types ─────────────────────────────────────────────
 
-type YFResponse struct {
-	QuoteResponse struct {
-		Result []YFQuote `json:"result"`
-	} `json:"quoteResponse"`
+type FHQuote struct {
+	C  float64 `json:"c"`  // current price
+	D  float64 `json:"d"`  // change
+	Dp float64 `json:"dp"` // percent change
+	H  float64 `json:"h"`  // high of day
+	L  float64 `json:"l"`  // low of day
+	O  float64 `json:"o"`  // open
+	Pc float64 `json:"pc"` // previous close
 }
 
-type YFQuote struct {
+type FHMetrics struct {
+	Metric struct {
+		W52High  float64 `json:"52WeekHigh"`
+		W52Low   float64 `json:"52WeekLow"`
+		PE       float64 `json:"peAnnual"`
+		DivYield float64 `json:"dividendYieldIndicatedAnnual"`
+		MktCap   float64 `json:"marketCapitalization"` // millions USD
+	} `json:"metric"`
+}
+
+// ─── Unified stock record (same JSON keys → frontend unchanged) ─
+
+type StockData struct {
 	Symbol                     string  `json:"symbol"`
 	ShortName                  string  `json:"shortName"`
 	RegularMarketPrice         float64 `json:"regularMarketPrice"`
 	RegularMarketChange        float64 `json:"regularMarketChange"`
 	RegularMarketChangePercent float64 `json:"regularMarketChangePercent"`
 	MarketCap                  float64 `json:"marketCap"`
-	RegularMarketVolume        float64 `json:"regularMarketVolume"`
 	FiftyTwoWeekHigh           float64 `json:"fiftyTwoWeekHigh"`
 	FiftyTwoWeekLow            float64 `json:"fiftyTwoWeekLow"`
-	RegularMarketOpen          float64 `json:"regularMarketOpen"`
-	RegularMarketDayHigh       float64 `json:"regularMarketDayHigh"`
-	RegularMarketDayLow        float64 `json:"regularMarketDayLow"`
-	AverageDailyVolume3Month   float64 `json:"averageDailyVolume3Month"`
 	TrailingPE                 float64 `json:"trailingPE"`
-	ForwardPE                  float64 `json:"forwardPE"`
 	DividendYield              float64 `json:"dividendYield"`
-	MarketState                string  `json:"marketState"`
 }
 
-// ─── Tickers ───────────────────────────────────────────────────
+// ─── Tickers & display names ───────────────────────────────────
 
 var top5Symbols  = []string{"NU", "T", "CCL", "SAN", "VG"}
-var indexSymbols = []string{"^GSPC", "^IXIC", "^DJI", "^VIX", "^RUT", "GC=F", "CL=F"}
+var indexSymbols = []string{"SPY", "QQQ", "DIA", "VIXY", "IWM", "GLD", "USO"}
 
-// ─── Fetch from Yahoo Finance ──────────────────────────────────
+var symbolNames = map[string]string{
+	"NU":   "Nu Holdings Ltd.",
+	"T":    "AT&T Inc.",
+	"CCL":  "Carnival Corporation",
+	"SAN":  "Banco Santander SA",
+	"VG":   "Vonage Holdings Corp.",
+	"SPY":  "SPDR S&P 500 ETF",
+	"QQQ":  "Invesco NASDAQ 100 ETF",
+	"DIA":  "SPDR Dow Jones ETF",
+	"VIXY": "ProShares VIX ETF",
+	"IWM":  "iShares Russell 2000 ETF",
+	"GLD":  "SPDR Gold ETF",
+	"USO":  "US Oil Fund ETF",
+}
 
-func fetchQuotes(symbols []string) ([]YFQuote, error) {
-	joined := ""
-	for i, s := range symbols {
-		if i > 0 {
-			joined += "%2C"
-		}
-		joined += s
+// ─── Finnhub client ────────────────────────────────────────────
+
+var finnhubKey string
+var fhClient   = &http.Client{Timeout: 10 * time.Second}
+
+func fhGet(path string, out interface{}) error {
+	url := "https://finnhub.io/api/v1" + path
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Set("X-Finnhub-Token", finnhubKey)
+	resp, err := fhClient.Do(req)
+	if err != nil {
+		return err
 	}
-	fields := "symbol,shortName,regularMarketPrice,regularMarketChange," +
-		"regularMarketChangePercent,marketCap,regularMarketVolume," +
-		"fiftyTwoWeekHigh,fiftyTwoWeekLow,regularMarketOpen," +
-		"regularMarketDayHigh,regularMarketDayLow,averageDailyVolume3Month," +
-		"trailingPE,forwardPE,dividendYield,marketState"
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	return json.Unmarshal(body, out)
+}
 
-	// Try query2 first (more permissive from cloud IPs), fall back to query1
-	hosts := []string{"query2.finance.yahoo.com", "query1.finance.yahoo.com"}
+func fetchOne(symbol string, withMetrics bool) StockData {
+	sd := StockData{Symbol: symbol, ShortName: symbolNames[symbol]}
 
-	client := &http.Client{Timeout: 12 * time.Second}
-
-	for _, host := range hosts {
-		url := "https://" + host + "/v7/finance/quote?symbols=" + joined + "&fields=" + fields
-
-		req, _ := http.NewRequest("GET", url, nil)
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-		req.Header.Set("Accept", "application/json, text/plain, */*")
-		req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-		req.Header.Set("Accept-Encoding", "gzip, deflate, br")
-		req.Header.Set("Origin", "https://finance.yahoo.com")
-		req.Header.Set("Referer", "https://finance.yahoo.com/")
-		req.Header.Set("Sec-Fetch-Dest", "empty")
-		req.Header.Set("Sec-Fetch-Mode", "cors")
-		req.Header.Set("Sec-Fetch-Site", "same-site")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			fmt.Printf("[YF] %s error: %v\n", host, err)
-			continue
-		}
-		defer resp.Body.Close()
-
-		body, _ := io.ReadAll(resp.Body)
-		fmt.Printf("[YF] %s status=%d body_len=%d\n", host, resp.StatusCode, len(body))
-
-		var result YFResponse
-		if err := json.Unmarshal(body, &result); err != nil {
-			fmt.Printf("[YF] parse error: %v\n", err)
-			continue
-		}
-		if len(result.QuoteResponse.Result) > 0 {
-			return result.QuoteResponse.Result, nil
-		}
-		fmt.Printf("[YF] %s returned 0 results\n", host)
+	var q FHQuote
+	if err := fhGet("/quote?symbol="+symbol, &q); err != nil {
+		fmt.Printf("[FH] quote %s: %v\n", symbol, err)
+		return sd
 	}
-	return nil, fmt.Errorf("all Yahoo Finance hosts returned no data")
+	sd.RegularMarketPrice         = q.C
+	sd.RegularMarketChange        = q.D
+	sd.RegularMarketChangePercent = q.Dp
+
+	if withMetrics {
+		var m FHMetrics
+		if err := fhGet("/stock/metric?symbol="+symbol+"&metric=all", &m); err == nil {
+			sd.FiftyTwoWeekHigh = m.Metric.W52High
+			sd.FiftyTwoWeekLow  = m.Metric.W52Low
+			sd.TrailingPE       = m.Metric.PE
+			sd.DividendYield    = m.Metric.DivYield / 100 // % → decimal
+			sd.MarketCap        = m.Metric.MktCap * 1e6   // M → units
+		}
+	}
+	return sd
+}
+
+func fetchGroup(symbols []string, withMetrics bool) []StockData {
+	out := make([]StockData, len(symbols))
+	var wg sync.WaitGroup
+	for i, sym := range symbols {
+		wg.Add(1)
+		go func(idx int, s string) {
+			defer wg.Done()
+			out[idx] = fetchOne(s, withMetrics)
+		}(i, sym)
+	}
+	wg.Wait()
+	return out
 }
 
 // ─── API handler ──────────────────────────────────────────────
@@ -108,34 +132,30 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 
-	top5, err1    := fetchQuotes(top5Symbols)
-	indices, err2 := fetchQuotes(indexSymbols)
-
-	type Payload struct {
-		Top5      []YFQuote `json:"top5"`
-		Indices   []YFQuote `json:"indices"`
-		Timestamp string    `json:"timestamp"`
-		Error     string    `json:"error,omitempty"`
+	if finnhubKey == "" {
+		w.WriteHeader(503)
+		fmt.Fprintf(w, `{"error":"FINNHUB_API_KEY not set"}`)
+		return
 	}
 
-	payload := Payload{
+	// Fetch in parallel: top5 with metrics, indices quote-only
+	var top5, indices []StockData
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); top5   = fetchGroup(top5Symbols, true)  }()
+	go func() { defer wg.Done(); indices = fetchGroup(indexSymbols, false) }()
+	wg.Wait()
+
+	type Payload struct {
+		Top5      []StockData `json:"top5"`
+		Indices   []StockData `json:"indices"`
+		Timestamp string      `json:"timestamp"`
+	}
+	json.NewEncoder(w).Encode(Payload{
 		Top5:      top5,
 		Indices:   indices,
 		Timestamp: time.Now().UTC().Format("Mon 02 Jan 2006 — 15:04:05 UTC"),
-	}
-
-	if err1 != nil {
-		fmt.Printf("[API] top5 error: %v\n", err1)
-		payload.Error = err1.Error()
-		payload.Top5 = []YFQuote{}
-	}
-	if err2 != nil {
-		fmt.Printf("[API] indices error: %v\n", err2)
-		if payload.Error == "" { payload.Error = err2.Error() }
-		payload.Indices = []YFQuote{}
-	}
-
-	json.NewEncoder(w).Encode(payload)
+	})
 }
 
 // ─── HTML handler ─────────────────────────────────────────────
@@ -148,6 +168,13 @@ func htmlHandler(w http.ResponseWriter, r *http.Request) {
 // ─── Main ─────────────────────────────────────────────────────
 
 func main() {
+	finnhubKey = os.Getenv("FINNHUB_API_KEY")
+	if finnhubKey == "" {
+		fmt.Println("⚠️  FINNHUB_API_KEY not set — /api/data will return 503")
+	} else {
+		fmt.Println("✅  Finnhub API key loaded")
+	}
+
 	port := "8080"
 	if p := os.Getenv("PORT"); p != "" {
 		port = p
@@ -386,7 +413,7 @@ const T = {
     footerRight: 'Solo informativo, no constituye asesoramiento de inversión',
     colStock:    'Stock', colPrice:'Precio', colDay:'Día %',
     colCap:'Mkt Cap', colPE:'P/E', colDiv:'Div Yield', colRange:'Rango 52S',
-    idxNames: {'^GSPC':'S&P 500','^IXIC':'NASDAQ','^DJI':'DOW','^VIX':'VIX','GC=F':'Oro','CL=F':'Petróleo','^RUT':'Russell 2K'},
+    idxNames: {'SPY':'S&P 500','QQQ':'NASDAQ 100','DIA':'Dow Jones','VIXY':'VIX','IWM':'Russell 2K','GLD':'Oro','USO':'Petróleo WTI'},
     movers:[
       {n:'1',c:'rgba(239,68,68,.2)',nc:'#f87171',
        title:'CPI Abril +3.8% YoY',
@@ -423,7 +450,7 @@ const T = {
     footerRight: 'For informational purposes only, not investment advice',
     colStock:    'Stock', colPrice:'Price', colDay:'Day %',
     colCap:'Mkt Cap', colPE:'P/E', colDiv:'Div Yield', colRange:'52W Range',
-    idxNames: {'^GSPC':'S&P 500','^IXIC':'NASDAQ','^DJI':'DOW','^VIX':'VIX','GC=F':'Gold','CL=F':'Oil WTI','^RUT':'Russell 2K'},
+    idxNames: {'SPY':'S&P 500','QQQ':'NASDAQ 100','DIA':'Dow Jones','VIXY':'VIX','IWM':'Russell 2K','GLD':'Gold','USO':'Oil WTI'},
     movers:[
       {n:'1',c:'rgba(239,68,68,.2)',nc:'#f87171',
        title:'April CPI +3.8% YoY',
@@ -460,7 +487,7 @@ const T = {
     footerRight: 'Solo a scopo informativo, non costituisce consulenza finanziaria',
     colStock:    'Titolo', colPrice:'Prezzo', colDay:'Giorno %',
     colCap:'Cap. Mercato', colPE:'P/E', colDiv:'Rend. Div.', colRange:'Intervallo 52S',
-    idxNames: {'^GSPC':'S&P 500','^IXIC':'NASDAQ','^DJI':'DOW','^VIX':'VIX','GC=F':'Oro','CL=F':'Petrolio WTI','^RUT':'Russell 2K'},
+    idxNames: {'SPY':'S&P 500','QQQ':'NASDAQ 100','DIA':'Dow Jones','VIXY':'VIX','IWM':'Russell 2K','GLD':'Oro','USO':'Petrolio WTI'},
     movers:[
       {n:'1',c:'rgba(239,68,68,.2)',nc:'#f87171',
        title:'CPI Aprile +3.8% su base annua',
