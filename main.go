@@ -390,7 +390,7 @@ header{background:var(--bg2);border-bottom:1px solid var(--border);padding:9px 2
 .tab-content.active{display:block}
 
 /* INDICES */
-.idx-strip{display:grid;grid-template-columns:repeat(8,1fr);gap:8px;padding:14px 20px;background:var(--bg2);border-bottom:1px solid var(--border)}
+.idx-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;padding:14px 20px;background:var(--bg2);border-bottom:1px solid var(--border)}
 .idx-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;transition:border-color .2s}
 .idx-card:hover{border-color:var(--pqf)}
 .idx-name{font-size:9px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
