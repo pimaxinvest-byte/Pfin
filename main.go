@@ -2,16 +2,13 @@ package main
 
 import (
 	"bytes"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -85,9 +82,11 @@ var symbolNames = map[string]string{
 	"VG": "Vonage Holdings Corp.",
 }
 
-var stooqIdxDefs = []struct{ sym, name string }{
-	{"^spx", "S&P 500"}, {"^dji", "Dow Jones"}, {"^ndx", "NASDAQ 100"},
-	{"^ibex", "IBEX 35"}, {"xauusd", "Oro / Gold"}, {"cl.f", "WTI Crude"},
+// TradingView Scanner symbols for global indices (works from any IP)
+var tvIdxDefs = []struct{ sym, name string }{
+	{"SP:SPX", "S&P 500"}, {"DJ:DJI", "Dow Jones"}, {"NASDAQ:NDX", "NASDAQ 100"},
+	{"CBOE:VIX", "VIX"}, {"TVC:RUT", "Russell 2K"}, {"BME:IBC", "IBEX 35"},
+	{"TVC:GOLD", "Oro / Gold"}, {"NYMEX:CL1!", "WTI Crude"},
 }
 
 var ibexTVTickers = []string{
@@ -112,9 +111,8 @@ var tvColumns = []string{
 // ─── HTTP clients ──────────────────────────────────────────────
 
 var finnhubKey string
-var fhCl    = &http.Client{Timeout: 10 * time.Second}
-var stooqCl = &http.Client{Timeout: 8 * time.Second}
-var tvCl    = &http.Client{Timeout: 12 * time.Second}
+var fhCl = &http.Client{Timeout: 10 * time.Second}
+var tvCl = &http.Client{Timeout: 12 * time.Second}
 
 // ─── Finnhub ───────────────────────────────────────────────────
 
@@ -166,77 +164,90 @@ func fetchGroup(syms []string, withMeta bool) []StockData {
 }
 
 // ─── Stooq single-symbol fetch ─────────────────────────────────
-// Stooq blocks multi-symbol batch queries from datacenter IPs
-// (returns N/D for all fields). Single-symbol queries work from any IP.
+// ─── TradingView Scanner — Global Indices ──────────────────────
+// Uses TV Scanner (same as IBEX). Works from any cloud IP.
+// Replaces Stooq which blocks Railway datacenter IPs.
 
-func stooqSingle(sym string) (close_, changePct float64) {
-	u := "https://stooq.com/q/l/?s=" + url.QueryEscape(sym) + "&f=sd2t2ohlcvp2&h&e=csv"
-	req, _ := http.NewRequest("GET", u, nil)
+func fetchIndicesFromTV() []IndexQuote {
+	syms := make([]string, len(tvIdxDefs))
+	nameMap := map[string]string{}
+	for i, d := range tvIdxDefs {
+		syms[i] = d.sym
+		nameMap[d.sym] = d.name
+	}
+	reqBody := map[string]interface{}{
+		"symbols": map[string]interface{}{
+			"tickers": syms,
+			"query":   map[string]interface{}{"types": []string{}},
+		},
+		"columns": []string{"name", "close", "change"},
+	}
+	body, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequest("POST", "https://scanner.tradingview.com/global/scan", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", "https://www.tradingview.com")
+	req.Header.Set("Referer", "https://www.tradingview.com/")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
-	req.Header.Set("Referer", "https://stooq.com/")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	resp, err := stooqCl.Do(req)
+
+	resp, err := tvCl.Do(req)
 	if err != nil {
-		return 0, 0
+		fmt.Printf("[TV idx] %v\n", err)
+		return nil
 	}
 	defer resp.Body.Close()
-	r := csv.NewReader(resp.Body)
-	r.FieldsPerRecord = -1
-	rows, err := r.ReadAll()
-	if err != nil || len(rows) < 2 {
-		return 0, 0
+
+	var result struct {
+		Data []struct {
+			S string        `json:"s"`
+			D []interface{} `json:"d"`
+		} `json:"data"`
 	}
-	hdr := map[string]int{}
-	for i, h := range rows[0] {
-		hdr[strings.ToLower(strings.TrimSpace(h))] = i
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		fmt.Printf("[TV idx] decode: %v\n", err)
+		return nil
 	}
-	row := rows[1]
-	getF := func(keys ...string) float64 {
-		for _, k := range keys {
-			if idx, ok := hdr[k]; ok && idx < len(row) {
-				v, _ := strconv.ParseFloat(strings.TrimSpace(row[idx]), 64)
-				return v
-			}
+
+	toF := func(v interface{}) float64 {
+		if f, ok := v.(float64); ok {
+			return f
 		}
 		return 0
 	}
-	close_ = getF("close")
-	if close_ == 0 {
-		return 0, 0
-	}
-	open_ := getF("open")
-	changePct = getF("change %", "p2")
-	if changePct == 0 && open_ > 0 {
-		changePct = (close_ - open_) / open_ * 100
-	}
-	return close_, changePct
-}
 
-func fetchRealIndices() []IndexQuote {
-	type res struct {
-		idx   int
-		quote IndexQuote
-	}
-	ch := make(chan res, len(stooqIdxDefs))
-	for i, def := range stooqIdxDefs {
-		go func(idx int, sym, name string) {
-			p, c := stooqSingle(sym)
-			ch <- res{idx, IndexQuote{Symbol: strings.ToUpper(sym), Name: name, Price: p, ChangePct: c}}
-		}(i, def.sym, def.name)
-	}
-	quotes := make([]IndexQuote, len(stooqIdxDefs))
-	for range stooqIdxDefs {
-		r := <-ch
-		quotes[r.idx] = r.quote
-	}
 	var out []IndexQuote
-	for _, q := range quotes {
-		if q.Price > 0 {
-			out = append(out, q)
+	for _, item := range result.Data {
+		d := item.D
+		if len(d) < 3 {
+			continue
+		}
+		price := toF(d[1])
+		if price == 0 {
+			continue
+		}
+		name := nameMap[item.S]
+		if name == "" {
+			name = item.S
+		}
+		out = append(out, IndexQuote{
+			Symbol:    item.S,
+			Name:      name,
+			Price:     price,
+			ChangePct: toF(d[2]),
+		})
+	}
+	// Preserve original order
+	ordered := make([]IndexQuote, 0, len(tvIdxDefs))
+	qmap := map[string]IndexQuote{}
+	for _, q := range out {
+		qmap[q.Symbol] = q
+	}
+	for _, d := range tvIdxDefs {
+		if q, ok := qmap[d.sym]; ok {
+			ordered = append(ordered, q)
 		}
 	}
-	fmt.Printf("[Stooq idx] %d/%d fetched\n", len(out), len(stooqIdxDefs))
-	return out
+	fmt.Printf("[TV idx] %d/%d fetched\n", len(ordered), len(tvIdxDefs))
+	return ordered
 }
 
 // ─── TradingView Scanner ────────────────────────────────────────
@@ -331,7 +342,7 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() { defer wg.Done(); top5 = fetchGroup(top5Symbols, true) }()
-	go func() { defer wg.Done(); indices = fetchRealIndices() }()
+	go func() { defer wg.Done(); indices = fetchIndicesFromTV() }()
 	wg.Wait()
 	if indices == nil {
 		indices = []IndexQuote{}
