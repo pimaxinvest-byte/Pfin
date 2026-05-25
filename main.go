@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
@@ -140,107 +141,109 @@ func fetchGroup(syms []string, withMeta bool) []StockData {
 	return out
 }
 
-// ─── Stooq CSV ─────────────────────────────────────────────────
+// ─── Stooq single-symbol fetch ─────────────────────────────────
+// Stooq blocks multi-symbol batch queries from datacenter IPs
+// (returns N/D for all fields). Single-symbol queries work from any IP.
 
-func stooqCSV(syms string) ([][]string, map[string]int) {
-	url := "https://stooq.com/q/l/?s=" + syms + "&f=sd2t2ohlcvp2&h&e=csv"
-	req, _ := http.NewRequest("GET", url, nil)
+func stooqSingle(sym string) (close_, changePct float64) {
+	u := "https://stooq.com/q/l/?s=" + url.QueryEscape(sym) + "&f=sd2t2ohlcvp2&h&e=csv"
+	req, _ := http.NewRequest("GET", u, nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36")
 	req.Header.Set("Referer", "https://stooq.com/")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	resp, err := stooqCl.Do(req)
 	if err != nil {
-		fmt.Printf("[Stooq] %v\n", err)
-		return nil, nil
+		return 0, 0
 	}
 	defer resp.Body.Close()
 	r := csv.NewReader(resp.Body)
 	r.FieldsPerRecord = -1
 	rows, err := r.ReadAll()
 	if err != nil || len(rows) < 2 {
-		fmt.Printf("[Stooq] parse err=%v rows=%d\n", err, len(rows))
-		return nil, nil
+		return 0, 0
 	}
 	hdr := map[string]int{}
 	for i, h := range rows[0] {
 		hdr[strings.ToLower(strings.TrimSpace(h))] = i
 	}
-	return rows[1:], hdr
-}
-
-func getF(row []string, hdr map[string]int, keys ...string) float64 {
-	for _, k := range keys {
-		if idx, ok := hdr[k]; ok && idx < len(row) {
-			v, _ := strconv.ParseFloat(strings.TrimSpace(row[idx]), 64)
-			return v
+	row := rows[1]
+	getF := func(keys ...string) float64 {
+		for _, k := range keys {
+			if idx, ok := hdr[k]; ok && idx < len(row) {
+				v, _ := strconv.ParseFloat(strings.TrimSpace(row[idx]), 64)
+				return v
+			}
 		}
+		return 0
 	}
-	return 0
+	close_ = getF("close")
+	if close_ == 0 {
+		return 0, 0
+	}
+	open_ := getF("open")
+	changePct = getF("change %", "p2")
+	if changePct == 0 && open_ > 0 {
+		changePct = (close_ - open_) / open_ * 100
+	}
+	return close_, changePct
 }
 
 func fetchRealIndices() []IndexQuote {
-	syms := make([]string, len(stooqIdxDefs))
-	for i, s := range stooqIdxDefs {
-		syms[i] = s.sym
+	type res struct {
+		idx   int
+		quote IndexQuote
 	}
-	rows, hdr := stooqCSV(strings.Join(syms, ","))
-	if rows == nil {
-		return nil
+	ch := make(chan res, len(stooqIdxDefs))
+	for i, def := range stooqIdxDefs {
+		go func(idx int, sym, name string) {
+			p, c := stooqSingle(sym)
+			ch <- res{idx, IndexQuote{Symbol: strings.ToUpper(sym), Name: name, Price: p, ChangePct: c}}
+		}(i, def.sym, def.name)
 	}
-	nameMap := map[string]string{}
-	for _, s := range stooqIdxDefs {
-		nameMap[strings.ToUpper(s.sym)] = s.name
+	quotes := make([]IndexQuote, len(stooqIdxDefs))
+	for range stooqIdxDefs {
+		r := <-ch
+		quotes[r.idx] = r.quote
 	}
-	symI := hdr["symbol"]
-	var result []IndexQuote
-	for _, row := range rows {
-		if symI >= len(row) {
-			continue
+	var out []IndexQuote
+	for _, q := range quotes {
+		if q.Price > 0 {
+			out = append(out, q)
 		}
-		sym := strings.ToUpper(strings.TrimSpace(row[symI]))
-		close_ := getF(row, hdr, "close")
-		if close_ == 0 {
-			continue
-		}
-		open_ := getF(row, hdr, "open")
-		pct := getF(row, hdr, "change %", "p2")
-		if pct == 0 && open_ > 0 {
-			pct = (close_ - open_) / open_ * 100
-		}
-		result = append(result, IndexQuote{Symbol: sym, Name: nameMap[sym], Price: close_, ChangePct: pct})
 	}
-	fmt.Printf("[Stooq] %d indices\n", len(result))
-	return result
+	fmt.Printf("[Stooq idx] %d/%d fetched\n", len(out), len(stooqIdxDefs))
+	return out
 }
 
 func fetchIbexPrices() map[string]IbexPrice {
-	rows, hdr := stooqCSV(ibexStooqSyms)
-	if rows == nil {
-		return nil
+	syms := strings.Split(ibexStooqSyms, ",")
+	type res struct {
+		ticker string
+		ip     IbexPrice
 	}
-	symI := hdr["symbol"]
+	ch := make(chan res, len(syms))
+	sem := make(chan struct{}, 6) // max 6 concurrent Stooq requests
+	for _, sym := range syms {
+		go func(s string) {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			p, c := stooqSingle(s)
+			raw := strings.ToUpper(s)
+			ticker := strings.TrimSuffix(raw, ".ES")
+			if t := ibexSymMap[ticker]; t != "" {
+				ticker = t
+			}
+			ch <- res{ticker, IbexPrice{P: p, C: c}}
+		}(sym)
+	}
 	prices := map[string]IbexPrice{}
-	for _, row := range rows {
-		if symI >= len(row) {
-			continue
+	for range syms {
+		r := <-ch
+		if r.ip.P > 0 {
+			prices[r.ticker] = r.ip
 		}
-		raw := strings.ToUpper(strings.TrimSpace(row[symI]))
-		ticker := strings.TrimSuffix(raw, ".ES")
-		ibexT := ibexSymMap[ticker]
-		if ibexT == "" {
-			ibexT = ticker
-		}
-		close_ := getF(row, hdr, "close")
-		if close_ == 0 {
-			continue
-		}
-		open_ := getF(row, hdr, "open")
-		pct := getF(row, hdr, "change %", "p2")
-		if pct == 0 && open_ > 0 {
-			pct = (close_ - open_) / open_ * 100
-		}
-		prices[ibexT] = IbexPrice{P: close_, C: pct}
 	}
-	fmt.Printf("[Stooq IBEX] %d prices\n", len(prices))
+	fmt.Printf("[Stooq IBEX] %d/%d prices fetched\n", len(prices), len(syms))
 	return prices
 }
 
