@@ -187,6 +187,123 @@ func fetchTop5FromTV() []StockData {
 	return out
 }
 
+// ─── Weekly Recommendations — Recomendado por Pietro ──────────
+// Static data updated manually every Monday 23:59 CET.
+// Live prices fetched from TV Scanner on each /api/weekly call.
+
+type WeeklyStock struct {
+	TVSym     string  `json:"-"`
+	Symbol    string  `json:"symbol"`
+	Name      string  `json:"name"`
+	Rationale string  `json:"rationale"`
+	Price     float64 `json:"price"`
+	Change    float64 `json:"change"`
+	Rec       float64 `json:"rec"`
+}
+
+type WeeklyMeta struct {
+	Theme      string `json:"theme"`
+	ThemeEmoji string `json:"themeEmoji"`
+	DateRange  string `json:"dateRange"`
+	UpdatedAt  string `json:"updatedAt"`
+}
+
+// ── UPDATE EVERY MONDAY 23:59 CET ──────────────────────────────
+var wkMeta = WeeklyMeta{
+	Theme:      "AI Infrastructure",
+	ThemeEmoji: "🤖",
+	DateRange:  "26 May – 1 Jun 2026",
+	UpdatedAt:  "Lun 26 May 2026 · 23:59 CET",
+}
+
+var wkGrowth = []WeeklyStock{
+	{TVSym: "NASDAQ:NVDA", Symbol: "NVDA", Name: "NVIDIA Corporation", Rationale: "Monopolio GPU entrenamiento e inferencia IA — ecosistema CUDA sin rival"},
+	{TVSym: "NASDAQ:AVGO", Symbol: "AVGO", Name: "Broadcom Inc.", Rationale: "ASICs custom para hyperscalers + switches Ethernet Tomahawk 5"},
+	{TVSym: "NYSE:ANET", Symbol: "ANET", Name: "Arista Networks", Rationale: "Backbone de red en data centers IA — ganando cuota a Cisco"},
+	{TVSym: "NASDAQ:MRVL", Symbol: "MRVL", Name: "Marvell Technology", Rationale: "Silicon personalizado + interconexión óptica para clusters IA"},
+	{TVSym: "NASDAQ:MU", Symbol: "MU", Name: "Micron Technology", Rationale: "Memoria HBM3E — cuello de botella crítico para GPUs NVDA/AMD"},
+}
+
+var wkValue = []WeeklyStock{
+	{TVSym: "NYSE:IBM", Symbol: "IBM", Name: "IBM Corporation", Rationale: "watsonx enterprise AI + consulting, P/E ~25x, dividendo estable 3%"},
+	{TVSym: "NYSE:DELL", Symbol: "DELL", Name: "Dell Technologies", Rationale: "Servidores PowerEdge IA a ~8x beneficios, backlog en récord"},
+	{TVSym: "NASDAQ:QCOM", Symbol: "QCOM", Name: "Qualcomm Inc.", Rationale: "IA on-device Snapdragon, P/E 15x, yield 2.5%, ciclo móvil alcista"},
+	{TVSym: "NASDAQ:INTC", Symbol: "INTC", Name: "Intel Corporation", Rationale: "Deep value en transición, Gaudi 3 IA, cotiza bajo valor contable"},
+	{TVSym: "NYSE:HPE", Symbol: "HPE", Name: "Hewlett Packard Enterprise", Rationale: "Servidores IA liquid-cooling, márgenes al alza, P/E 10x"},
+}
+
+func weeklyHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	// Collect all tickers for live price fetch
+	all := append(append([]WeeklyStock{}, wkGrowth...), wkValue...)
+	tickers := make([]string, len(all))
+	for i, s := range all {
+		tickers[i] = s.TVSym
+	}
+
+	reqBody := map[string]interface{}{
+		"symbols": map[string]interface{}{
+			"tickers": tickers,
+			"query":   map[string]interface{}{"types": []string{}},
+		},
+		"columns": []string{"close", "change", "Recommend.All"},
+	}
+	body, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequest("POST", "https://scanner.tradingview.com/america/scan", bytes.NewReader(body))
+	tvHeaders(req)
+
+	pm := map[string][3]float64{} // sym -> [price, change, rec]
+	if resp, err := tvCl.Do(req); err == nil {
+		defer resp.Body.Close()
+		var res struct {
+			Data []struct {
+				S string        `json:"s"`
+				D []interface{} `json:"d"`
+			} `json:"data"`
+		}
+		if json.NewDecoder(resp.Body).Decode(&res) == nil {
+			for _, item := range res.Data {
+				if len(item.D) >= 3 {
+					sym := item.S
+					if idx := strings.Index(sym, ":"); idx >= 0 {
+						sym = sym[idx+1:]
+					}
+					pm[sym] = [3]float64{toF(item.D[0]), toF(item.D[1]), toF(item.D[2])}
+				}
+			}
+		}
+	}
+
+	fill := func(stocks []WeeklyStock) []WeeklyStock {
+		out := make([]WeeklyStock, len(stocks))
+		for i, s := range stocks {
+			out[i] = s
+			if p, ok := pm[s.Symbol]; ok {
+				out[i].Price = p[0]
+				out[i].Change = p[1]
+				out[i].Rec = p[2]
+			}
+		}
+		return out
+	}
+
+	type Resp struct {
+		Meta      WeeklyMeta    `json:"meta"`
+		Growth    []WeeklyStock `json:"growth"`
+		Value     []WeeklyStock `json:"value"`
+		Timestamp string        `json:"timestamp"`
+	}
+	json.NewEncoder(w).Encode(Resp{
+		Meta:      wkMeta,
+		Growth:    fill(wkGrowth),
+		Value:     fill(wkValue),
+		Timestamp: time.Now().UTC().Format("Mon 02 Jan 2006 — 15:04:05 UTC"),
+	})
+	fmt.Printf("[weekly] %d growth + %d value · prices fetched\n", len(wkGrowth), len(wkValue))
+}
+
 // ─── TradingView Scanner — Global Indices ──────────────────────
 // Uses TV Scanner (same as IBEX). Works from any cloud IP.
 // Replaces Stooq which blocks Railway datacenter IPs.
@@ -382,6 +499,7 @@ func main() {
 	http.HandleFunc("/", htmlHandler)
 	http.HandleFunc("/api/data", apiHandler)
 	http.HandleFunc("/api/ibex", ibexHandler)
+	http.HandleFunc("/api/weekly", weeklyHandler)
 	u := "http://localhost:" + port
 	fmt.Println("╔══════════════════════════════════════╗")
 	fmt.Println("║  Pietro Quantum Finance — PQF        ║")
@@ -589,6 +707,31 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
   .main-grid{grid-template-columns:1fr}
   .kpi-row{grid-template-columns:repeat(3,1fr)}
 }
+/* ── WEEKLY RECOMMENDATIONS ── */
+.pietro-section{background:linear-gradient(135deg,#071210 0%,#0a1a0e 100%);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:20px 24px 16px}
+.pietro-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.pietro-title{font-size:15px;font-weight:700;color:var(--pqf2);letter-spacing:.3px}
+.pietro-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.theme-badge{background:var(--pqf3);color:var(--pqf2);border:1px solid var(--pqf);border-radius:12px;font-size:11px;font-weight:600;padding:3px 10px}
+.date-badge{color:var(--muted);font-size:11px;font-family:'JetBrains Mono',monospace}
+.update-badge{color:#555;font-size:10px;font-family:'JetBrains Mono',monospace}
+.pietro-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.pietro-cols{grid-template-columns:1fr}}
+.col-hdr{font-size:11px;font-weight:700;letter-spacing:.8px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid}
+.col-hdr.growth{color:#4ade80;border-color:#4ade8040}
+.col-hdr.value{color:var(--gold);border-color:#f5c84240}
+.wk-cards{display:flex;flex-direction:column;gap:7px}
+.wk-card{background:var(--bg4);border:1px solid var(--border);border-radius:8px;padding:10px 12px;transition:.2s}
+.wk-card:hover{border-color:var(--pqf)}
+.wk-card.wk-growth{border-left:3px solid #4ade80}
+.wk-card.wk-value{border-left:3px solid var(--gold)}
+.wk-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px}
+.wk-sym{font-size:13px;font-weight:700;color:#e8f5e9;font-family:'JetBrains Mono',monospace}
+.wk-rec-badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:6px;vertical-align:middle}
+.wk-price-row{font-size:12px;font-weight:600;color:#ccc;font-family:'JetBrains Mono',monospace}
+.wk-name{font-size:10px;color:var(--muted);margin-bottom:4px}
+.wk-why{font-size:10px;color:#8eac92;line-height:1.4}
+.weekly-foot{margin-top:10px;font-size:9px;color:#444;font-family:'JetBrains Mono',monospace;text-align:right}
 </style>
 </head>
 <body>
@@ -655,6 +798,33 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
       </div>
     </div>
   </main>
+
+  <!-- ══ RECOMENDADO POR PIETRO ══ -->
+  <div class="pietro-section">
+    <div class="pietro-header">
+      <div class="pietro-title">⭐ Recomendado por Pietro · Selección Semanal</div>
+      <div class="pietro-meta">
+        <span class="theme-badge" id="weekly-theme">🤖 AI Infrastructure</span>
+        <span class="date-badge" id="weekly-dates">Semana 26 May – 1 Jun 2026</span>
+        <span class="update-badge">📅 Actualización: lunes 23:59 CET</span>
+      </div>
+    </div>
+    <div class="pietro-cols">
+      <div>
+        <div class="col-hdr growth">📈 GROWTH — Alta convicción, alta velocidad</div>
+        <div class="wk-cards" id="weekly-growth">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="col-hdr value">💎 VALUE — Exposición IA a precio razonable</div>
+        <div class="wk-cards" id="weekly-value">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="weekly-foot" id="weekly-ts">Cargando…</div>
+  </div>
 </div>
 
 <!-- ══ IBEX 35 TAB ══ -->
@@ -885,7 +1055,50 @@ async function loadGlobal() {
   }
 }
 
-function refreshAll() { loadGlobal(); if (ibexLoaded) loadIbex(); }
+function refreshAll() { loadGlobal(); loadWeekly(); if (ibexLoaded) loadIbex(); }
+
+// ══ Weekly Recommendations ════════════════════════════════════
+async function loadWeekly() {
+  try {
+    const r = await fetch('/api/weekly');
+    const d = await r.json();
+    renderWeekly(d);
+  } catch(e) {}
+}
+
+function renderWeekly(d) {
+  if (!d) return;
+  const m = d.meta;
+  document.getElementById('weekly-theme').textContent = m.themeEmoji + ' ' + m.theme;
+  document.getElementById('weekly-dates').textContent = 'Semana ' + m.dateRange;
+  document.getElementById('weekly-ts').textContent =
+    '🟢 Live · TradingView Scanner · ' + (d.timestamp||'') + ' · Tema actualizado: ' + m.updatedAt;
+  renderWeeklyCards('weekly-growth', d.growth, 'growth');
+  renderWeeklyCards('weekly-value',  d.value,  'value');
+}
+
+function renderWeeklyCards(id, stocks, type) {
+  const el = document.getElementById(id);
+  if (!el || !stocks) return;
+  el.innerHTML = stocks.map(s => {
+    const pct = s.change || 0;
+    const c = pct >= 0 ? 'up' : 'dn';
+    const sign = pct > 0 ? '+' : '';
+    const priceStr = s.price ? '$' + fmt(s.price) : '—';
+    const chgStr = s.price ? ' <span class="' + c + '">' + arrow(pct) + sign + fmt(pct,2) + '%</span>' : '';
+    const sig = s.rec ? recToSig(s.rec) : '';
+    const cls = sig ? sigClass(sig) : '';
+    const recHtml = sig ? ' <span class="sig-badge ' + cls + '" style="font-size:9px;padding:1px 4px">' + sig + '</span>' : '';
+    return '<div class="wk-card wk-' + type + '">'
+      + '<div class="wk-top">'
+      + '<div><span class="wk-sym">' + s.symbol + '</span>' + recHtml + '</div>'
+      + '<div class="wk-price-row">' + priceStr + chgStr + '</div>'
+      + '</div>'
+      + '<div class="wk-name">' + s.name + '</div>'
+      + '<div class="wk-why">💡 ' + s.rationale + '</div>'
+      + '</div>';
+  }).join('');
+}
 
 // ══ IBEX 35 DATA (TradingView signals — 25 May 2026) ══════════
 let ibexHz = '5m', ibexFilter = 'ALL', ibexLive = {}, ibexLoaded = false;
@@ -1124,7 +1337,8 @@ setLang(currentLang);
 renderMovers();
 renderContext();
 loadGlobal();
-setInterval(() => { loadGlobal(); if (ibexLoaded) loadIbex(); }, 60000);
+loadWeekly();
+setInterval(() => { loadGlobal(); loadWeekly(); if (ibexLoaded) loadIbex(); }, 60000);
 </script>
 </body>
 </html>`
