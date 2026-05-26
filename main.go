@@ -673,6 +673,193 @@ func fetchIbexFromTV() []TVStock {
 
 // ─── Handlers ──────────────────────────────────────────────────
 
+// ─── Stock Analyzer — /api/analyze?ticker=AAPL ─────────────────
+// Accepts "AAPL" or "NASDAQ:AAPL" or "BME:SAN".
+// Tries multiple exchange prefixes when no prefix given.
+
+var analyzeExchanges = []string{
+	"NASDAQ", "NYSE", "BME", "EPA", "XETR", "BIT", "LSE",
+	"AMS", "TVC", "CBOE", "NYMEX", "FX", "CRYPTO",
+}
+
+var analyzeColumns = []string{
+	"description",            // 0
+	"close",                  // 1
+	"change",                 // 2
+	"volume",                 // 3
+	"Recommend.All",          // 4  1D overall
+	"Recommend.All|5",        // 5  5min overall
+	"Recommend.MA",           // 6  MA subscore
+	"Recommend.Other",        // 7  oscillator subscore
+	"RSI",                    // 8
+	"RSI|5",                  // 9
+	"MACD.macd",              // 10
+	"MACD.signal",            // 11
+	"BB.upper",               // 12
+	"BB.lower",               // 13
+	"BB.basis",               // 14
+	"EMA50",                  // 15
+	"EMA200",                 // 16
+	"VWAP",                   // 17
+	"price_52_week_high",     // 18
+	"price_52_week_low",      // 19
+	"market_cap_basic",       // 20
+	"price_earnings_ttm",     // 21
+	"dividends_yield_current", // 22
+	"high",                   // 23  day high
+	"low",                    // 24  day low
+}
+
+type AnalysisResult struct {
+	TVSym    string  `json:"tvSym"`
+	Symbol   string  `json:"symbol"`
+	Name     string  `json:"name"`
+	Price    float64 `json:"price"`
+	Change   float64 `json:"change"`
+	Volume   float64 `json:"volume"`
+	Rec1D    float64 `json:"rec1d"`
+	Rec5m    float64 `json:"rec5m"`
+	RecMA    float64 `json:"recMA"`
+	RecOsc   float64 `json:"recOsc"`
+	RSI      float64 `json:"rsi"`
+	RSI5m    float64 `json:"rsi5m"`
+	MACD     float64 `json:"macd"`
+	MACDSig  float64 `json:"macdSig"`
+	BBU      float64 `json:"bbu"`
+	BBL      float64 `json:"bbl"`
+	BBB      float64 `json:"bbb"`
+	EMA50    float64 `json:"ema50"`
+	EMA200   float64 `json:"ema200"`
+	VWAP     float64 `json:"vwap"`
+	H52      float64 `json:"h52"`
+	L52      float64 `json:"l52"`
+	MktCap   float64 `json:"mktCap"`
+	PE       float64 `json:"pe"`
+	DivYield float64 `json:"divYield"`
+	DayHigh  float64 `json:"dayHigh"`
+	DayLow   float64 `json:"dayLow"`
+	OffHigh  float64 `json:"offHigh"`
+	Sig1D    string  `json:"sig1d"`
+	Sig5m    string  `json:"sig5m"`
+	TrendEMA string  `json:"trendEMA"`
+	Timestamp string `json:"timestamp"`
+}
+
+func recLabel(v float64) string {
+	switch {
+	case v >= 0.5:
+		return "STRONG BUY"
+	case v >= 0.1:
+		return "BUY"
+	case v > -0.1:
+		return "NEUTRAL"
+	case v > -0.5:
+		return "SELL"
+	default:
+		return "STRONG SELL"
+	}
+}
+
+func tvScanSingle(tickers []string) (string, []interface{}) {
+	reqBody := map[string]interface{}{
+		"symbols": map[string]interface{}{
+			"tickers": tickers,
+			"query":   map[string]interface{}{"types": []string{}},
+		},
+		"columns": analyzeColumns,
+	}
+	body, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequest("POST", "https://scanner.tradingview.com/global/scan", bytes.NewReader(body))
+	tvHeaders(req)
+	resp, err := tvCl.Do(req)
+	if err != nil {
+		return "", nil
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Data []struct {
+			S string        `json:"s"`
+			D []interface{} `json:"d"`
+		} `json:"data"`
+	}
+	if json.NewDecoder(resp.Body).Decode(&result) != nil {
+		return "", nil
+	}
+	for _, item := range result.Data {
+		if len(item.D) >= 25 && toF(item.D[1]) > 0 {
+			return item.S, item.D
+		}
+	}
+	return "", nil
+}
+
+func analyzeHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	raw := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("ticker")))
+	if raw == "" {
+		w.WriteHeader(400)
+		fmt.Fprint(w, `{"error":"ticker required"}`)
+		return
+	}
+
+	// Build candidate list
+	var candidates []string
+	if strings.Contains(raw, ":") {
+		candidates = []string{raw}
+	} else {
+		for _, ex := range analyzeExchanges {
+			candidates = append(candidates, ex+":"+raw)
+		}
+	}
+
+	tvSym, d := tvScanSingle(candidates)
+	if d == nil {
+		w.WriteHeader(404)
+		fmt.Fprintf(w, `{"error":"ticker %q not found — try EXCHANGE:TICKER format","tried":%d}`, raw, len(candidates))
+		return
+	}
+
+	sym := tvSym
+	if idx := strings.Index(sym, ":"); idx >= 0 {
+		sym = sym[idx+1:]
+	}
+
+	price := toF(d[1])
+	h52 := toF(d[18])
+	var offHigh float64
+	if h52 > 0 {
+		offHigh = (h52 - price) / h52 * 100
+	}
+
+	ema50, ema200 := toF(d[15]), toF(d[16])
+	trend := "NEUTRAL"
+	if price > ema50 && ema50 > ema200 {
+		trend = "UPTREND"
+	} else if price < ema50 && ema50 < ema200 {
+		trend = "DOWNTREND"
+	}
+
+	json.NewEncoder(w).Encode(AnalysisResult{
+		TVSym: tvSym, Symbol: sym, Name: toS(d[0]),
+		Price: price, Change: toF(d[2]), Volume: toF(d[3]),
+		Rec1D: toF(d[4]), Rec5m: toF(d[5]), RecMA: toF(d[6]), RecOsc: toF(d[7]),
+		RSI: toF(d[8]), RSI5m: toF(d[9]),
+		MACD: toF(d[10]), MACDSig: toF(d[11]),
+		BBU: toF(d[12]), BBL: toF(d[13]), BBB: toF(d[14]),
+		EMA50: ema50, EMA200: ema200, VWAP: toF(d[17]),
+		H52: h52, L52: toF(d[19]),
+		MktCap: toF(d[20]), PE: toF(d[21]), DivYield: toF(d[22]) / 100,
+		DayHigh: toF(d[23]), DayLow: toF(d[24]),
+		OffHigh: offHigh,
+		Sig1D: recLabel(toF(d[4])), Sig5m: recLabel(toF(d[5])),
+		TrendEMA: trend,
+		Timestamp: time.Now().UTC().Format("Mon 02 Jan 2006 — 15:04:05 UTC"),
+	})
+	fmt.Printf("[analyze] %s %s $%.2f\n", tvSym, recLabel(toF(d[4])), price)
+}
+
 func apiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
@@ -724,6 +911,7 @@ func main() {
 	http.HandleFunc("/api/data", apiHandler)
 	http.HandleFunc("/api/ibex", ibexHandler)
 	http.HandleFunc("/api/weekly", weeklyHandler)
+	http.HandleFunc("/api/analyze", analyzeHandler)
 	u := "http://localhost:" + port
 	fmt.Println("╔══════════════════════════════════════╗")
 	fmt.Println("║  Pietro Quantum Finance — PQF        ║")
@@ -992,6 +1180,58 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
 .lbl-moat{color:#4ade80}.lbl-draw{color:#f87171}.lbl-cat{color:#60a5fa}.lbl-exit{color:#fbbf24}
 .deep-block-body{font-size:10px;color:#8eac92;line-height:1.55}
 .deep-src{font-size:8px;color:#3d5c40;margin-top:3px;font-style:italic;line-height:1.4}
+
+/* ── STOCK ANALYZER ── */
+.an-bar{display:flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:2px 2px 2px 8px;transition:border-color .2s}
+.an-bar:focus-within{border-color:var(--pqf)}
+.an-input{background:none;border:none;outline:none;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;width:90px;text-transform:uppercase;letter-spacing:.5px}
+.an-input::placeholder{color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0}
+.an-btn{background:var(--pqf3);border:1px solid var(--pqf);color:var(--pqf2);border-radius:5px;font-size:10px;font-weight:700;padding:4px 9px;cursor:pointer;transition:.2s;white-space:nowrap}
+.an-btn:hover{background:var(--pqf);color:#fff}
+.an-btn:disabled{opacity:.5;cursor:wait}
+/* modal overlay */
+.an-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:900;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.an-overlay.open{display:flex}
+.an-box{background:var(--bg2);border:1px solid var(--pqf);border-radius:14px;width:min(96vw,780px);max-height:90vh;overflow-y:auto;box-shadow:0 0 48px rgba(43,122,53,.25)}
+.an-hdr{padding:16px 20px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--border);background:linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%)}
+.an-sym{font-size:22px;font-weight:800;color:var(--pqf2);font-family:'JetBrains Mono',monospace}
+.an-name{font-size:11px;color:var(--muted);margin-top:2px}
+.an-price-block{text-align:right}
+.an-price{font-size:22px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.an-chg{font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace;display:block;margin-top:1px}
+.an-close{background:var(--bg4);border:1px solid var(--border);color:var(--muted);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;transition:.2s;flex-shrink:0;margin-left:10px}
+.an-close:hover{border-color:var(--red);color:var(--red)}
+.an-body{padding:16px 20px;display:flex;flex-direction:column;gap:14px}
+/* signal row */
+.an-sig-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.an-sig-card{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:11px 14px}
+.an-sig-label{font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px}
+.an-sig-val{font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace}
+.an-sig-sub{font-size:9px;color:var(--muted);margin-top:2px}
+.an-sig-bar{height:4px;background:var(--bg4);border-radius:2px;margin-top:6px;overflow:hidden}
+.an-sig-fill{height:100%;border-radius:2px;transition:width .4s}
+/* metrics grid */
+.an-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media(max-width:600px){.an-sig-row{grid-template-columns:1fr 1fr}.an-metrics{grid-template-columns:repeat(2,1fr)}}
+.an-metric{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 12px}
+.an-metric-l{font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.an-metric-v{font-size:13px;font-weight:700;font-family:'JetBrains Mono',monospace}
+/* section title inside modal */
+.an-sec{font-size:9.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.an-sec::after{content:'';flex:1;height:1px;background:var(--border)}
+/* range bar */
+.an-range{display:flex;flex-direction:column;gap:4px}
+.an-range-bar{height:6px;background:var(--bg4);border-radius:3px;position:relative}
+.an-range-cur{position:absolute;top:-3px;width:3px;height:12px;background:var(--pqf2);border-radius:2px;transform:translateX(-50%);transition:left .4s}
+.an-range-labels{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+.an-ts{font-size:9px;color:#333;font-family:'JetBrains Mono',monospace;text-align:center;margin-top:4px}
+/* trend badge */
+.an-trend{display:inline-block;font-size:10px;font-weight:700;padding:3px 9px;border-radius:12px;margin-left:8px;vertical-align:middle}
+.trend-up{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3)}
+.trend-dn{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.trend-nn{background:var(--bg4);color:var(--muted);border:1px solid var(--border)}
+/* error state */
+.an-err{padding:30px;text-align:center;color:#fca5a5;font-size:12px}
 </style>
 </head>
 <body>
@@ -1024,9 +1264,22 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
       <button class="lang-btn" onclick="setLang('it')">🇮🇹 IT</button>
     </div>
     <div class="ts" id="ts">—</div>
+    <div class="an-bar" title="Analizar cualquier acción — escribe el ticker y pulsa Analizar">
+      <input class="an-input" id="an-ticker" placeholder="AAPL, SAN, NVDA…" maxlength="20"
+        onkeydown="if(event.key==='Enter'){analyzeStock()}"
+        oninput="this.value=this.value.toUpperCase()">
+      <button class="an-btn" id="an-btn" onclick="analyzeStock()">🔍 Analizar</button>
+    </div>
     <button class="refresh-btn" onclick="refreshAll()" data-i18n="refresh">⟳ Refresh</button>
   </div>
 </header>
+
+<!-- ══ ANALYZE MODAL ══ -->
+<div class="an-overlay" id="an-overlay" onclick="if(event.target===this)closeAnalyzeModal()">
+  <div class="an-box" id="an-box">
+    <div class="loading" style="padding:50px"><div class="spinner"></div>Buscando…</div>
+  </div>
+</div>
 
 <!-- TICKER TAPE -->
 <div class="tape" id="tape-wrap"><div class="tape-inner" id="tape">
@@ -1672,6 +1925,178 @@ function buildIbexTable() {
 }
 
 function buildIbexAll() { buildIbexKPI(); buildIbexSentiment(); buildIbexFilters(); buildIbexCards(getFiltered()); buildIbexTable(); }
+
+// ══ Stock Analyzer ════════════════════════════════════════════
+async function analyzeStock() {
+  const raw = document.getElementById('an-ticker').value.trim();
+  if (!raw) { document.getElementById('an-ticker').focus(); return; }
+  const btn = document.getElementById('an-btn');
+  btn.disabled = true; btn.textContent = '…';
+  openAnalyzeModal('<div class="loading" style="padding:60px"><div class="spinner"></div>Buscando ' + raw.toUpperCase() + '…</div>');
+  try {
+    const r = await fetch('/api/analyze?ticker=' + encodeURIComponent(raw));
+    const d = await r.json();
+    if (d.error) { openAnalyzeModal('<div class="an-err">⚠️ ' + d.error + '<br><br><small>Prueba con formato EXCHANGE:TICKER (ej: BME:SAN, NASDAQ:AAPL)</small></div>'); }
+    else          { openAnalyzeModal(renderAnalysis(d)); }
+  } catch(e) {
+    openAnalyzeModal('<div class="an-err">⚠️ Error de red: ' + e.message + '</div>');
+  } finally {
+    btn.disabled = false; btn.textContent = '🔍 Analizar';
+  }
+}
+
+function openAnalyzeModal(html) {
+  document.getElementById('an-box').innerHTML = html;
+  document.getElementById('an-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeAnalyzeModal() {
+  document.getElementById('an-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAnalyzeModal(); });
+
+function renderAnalysis(d) {
+  // Signal color helpers
+  function sigCss(sig) {
+    if (sig==='STRONG BUY')  return {color:'var(--green)',  bg:'rgba(63,185,80,.12)',  fill:'var(--green)'};
+    if (sig==='BUY')         return {color:'#60a5fa',       bg:'rgba(59,130,246,.10)', fill:'#60a5fa'};
+    if (sig==='NEUTRAL')     return {color:'var(--muted)',  bg:'var(--bg4)',           fill:'var(--muted)'};
+    if (sig==='SELL')        return {color:'var(--red)',    bg:'rgba(239,68,68,.10)', fill:'var(--red)'};
+    return                          {color:'#f87171',       bg:'rgba(239,68,68,.18)', fill:'#f87171'};
+  }
+  function sigFill(rec) { return Math.min(Math.round(Math.abs(rec)*100), 97); }
+  function sigEmoji(sig) {
+    if (sig==='STRONG BUY')  return '💚';
+    if (sig==='BUY')         return '🟢';
+    if (sig==='NEUTRAL')     return '⚪';
+    if (sig==='SELL')        return '🔴';
+    return '🔴🔴';
+  }
+
+  const pChg  = d.change || 0;
+  const chgCl = pChg >= 0 ? 'up' : 'dn';
+  const chgSign = pChg > 0 ? '+' : '';
+
+  // Price prefix — crude heuristic: if symbol contains no common US-only clue, show €
+  const fmtPrice = p => {
+    if (!p) return '—';
+    return '$' + fmt(p);
+  };
+
+  // signals
+  const s1 = sigCss(d.sig1d), s5 = sigCss(d.sig5m);
+  const trendCl = d.trendEMA==='UPTREND' ? 'trend-up' : d.trendEMA==='DOWNTREND' ? 'trend-dn' : 'trend-nn';
+  const trendTxt = d.trendEMA==='UPTREND' ? '📈 UPTREND' : d.trendEMA==='DOWNTREND' ? '📉 DOWNTREND' : '↔ LATERAL';
+
+  // 52W range pct
+  const lo = d.l52, hi = d.h52, cur = d.price;
+  const pct52 = (hi > lo) ? ((cur - lo) / (hi - lo) * 100).toFixed(0) : 50;
+
+  function sigCard(label, sig, rec, rsi, sub) {
+    const c = sigCss(sig);
+    return '<div class="an-sig-card" style="border-color:' + c.color + '33;background:' + c.bg + '">'
+      + '<div class="an-sig-label">' + label + '</div>'
+      + '<div class="an-sig-val" style="color:' + c.color + '">' + sigEmoji(sig) + ' ' + sig + '</div>'
+      + '<div class="an-sig-sub">TV Score: ' + (rec > 0 ? '+' : '') + fmt(rec, 3) + (sub ? ' · ' + sub : '') + '</div>'
+      + '<div class="an-sig-bar"><div class="an-sig-fill" style="width:' + sigFill(rec) + '%;background:' + c.fill + '"></div></div>'
+      + '</div>';
+  }
+
+  function metric(label, val, color) {
+    return '<div class="an-metric">'
+      + '<div class="an-metric-l">' + label + '</div>'
+      + '<div class="an-metric-v"' + (color ? ' style="color:' + color + '"' : '') + '>' + val + '</div>'
+      + '</div>';
+  }
+
+  const rsiColor = d.rsi >= 70 ? 'var(--gold)' : d.rsi <= 30 ? 'var(--blue)' : 'var(--text)';
+  const rsiLabel = d.rsi >= 70 ? ' OB' : d.rsi <= 30 ? ' OS' : '';
+  const macdColor = d.macd > 0 ? 'var(--green)' : 'var(--red)';
+  const bbWidthPct = d.bbu > 0 ? ((d.price - d.bbl) / (d.bbu - d.bbl) * 100).toFixed(0) : 50;
+
+  const tvUrl = 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(d.tvSym);
+  const crossLabel = d.ema50 > d.ema200
+    ? '<span style="color:var(--green)">Golden</span>'
+    : '<span style="color:var(--red)">Death</span>';
+  const maLabel = d.recMA > 0 ? 'var(--green)' : d.recMA < 0 ? 'var(--red)' : 'var(--muted)';
+  const oscLabel = d.recOsc > 0 ? 'var(--green)' : d.recOsc < 0 ? 'var(--red)' : 'var(--muted)';
+  const volStr = d.volume >= 1e6 ? (d.volume/1e6).toFixed(1)+'M'
+               : d.volume >= 1e3 ? (d.volume/1e3).toFixed(0)+'K'
+               : fmt(d.volume,0);
+  const capStr = d.mktCap >= 1e12 ? '$'+(d.mktCap/1e12).toFixed(2)+'T'
+               : d.mktCap >= 1e9  ? '$'+(d.mktCap/1e9).toFixed(0)+'B'
+               : d.mktCap         ? '$'+(d.mktCap/1e6).toFixed(0)+'M' : '—';
+  const offColor = d.offHigh >= 15 ? 'var(--green)' : 'var(--muted)';
+
+  return '<div class="an-hdr">'
+    + '<div>'
+    + '<div class="an-sym">' + d.symbol + ' <span class="an-trend ' + trendCl + '">' + trendTxt + '</span></div>'
+    + '<div class="an-name">' + (d.name||'—') + ' &nbsp;&middot;&nbsp; <span style="font-family:monospace;font-size:10px;color:#555">' + d.tvSym + '</span></div>'
+    + '</div>'
+    + '<div style="display:flex;align-items:center;gap:10px">'
+    + '<div class="an-price-block"><div class="an-price">' + fmtPrice(d.price) + '</div>'
+    + '<span class="an-chg ' + chgCl + '">' + arrow(pChg) + chgSign + fmt(pChg,2) + '%</span></div>'
+    + '<button class="an-close" onclick="closeAnalyzeModal()" title="Cerrar">X</button>'
+    + '</div></div>'
+    + '<div class="an-body">'
+    // signals row
+    + '<div><div class="an-sec">Senales TradingView</div><div class="an-sig-row">'
+    + sigCard('Senal 1D', d.sig1d, d.rec1d, d.rsi, 'RSI ' + fmt(d.rsi,1) + rsiLabel)
+    + sigCard('Senal 5min', d.sig5m, d.rec5m, d.rsi5m, 'RSI5 ' + fmt(d.rsi5m,1))
+    + '<div class="an-sig-card">'
+    + '<div class="an-sig-label">Subscores 1D</div>'
+    + '<div style="display:flex;flex-direction:column;gap:4px;margin-top:4px">'
+    + '<div style="display:flex;justify-content:space-between;font-size:10px">'
+    + '<span style="color:var(--muted)">Medias Moviles</span>'
+    + '<span style="font-family:monospace;font-weight:700;color:' + maLabel + '">' + fmt(d.recMA,3) + '</span></div>'
+    + '<div style="display:flex;justify-content:space-between;font-size:10px">'
+    + '<span style="color:var(--muted)">Osciladores</span>'
+    + '<span style="font-family:monospace;font-weight:700;color:' + oscLabel + '">' + fmt(d.recOsc,3) + '</span></div>'
+    + '<div style="margin-top:4px;font-size:9px;color:#555">EMA50 vs EMA200: ' + crossLabel + ' Cross</div>'
+    + '</div></div>'
+    + '</div></div>'
+    // technicals
+    + '<div><div class="an-sec">Indicadores Tecnicos</div><div class="an-metrics">'
+    + metric('RSI (1D)', fmt(d.rsi,1) + rsiLabel, rsiColor)
+    + metric('RSI (5min)', fmt(d.rsi5m,1), d.rsi5m>=70?'var(--gold)':d.rsi5m<=30?'var(--blue)':'var(--text)')
+    + metric('MACD', (d.macd>0?'+ ':'- ') + fmt(Math.abs(d.macd),4), macdColor)
+    + metric('MACD Signal', fmt(d.macdSig,4), d.macdSig>0?'var(--green)':'var(--red)')
+    + metric('EMA 50', '$'+fmt(d.ema50), d.price>d.ema50?'var(--green)':'var(--red)')
+    + metric('EMA 200', '$'+fmt(d.ema200), d.price>d.ema200?'var(--green)':'var(--red)')
+    + metric('VWAP', '$'+fmt(d.vwap), d.price>d.vwap?'var(--green)':'var(--red)')
+    + metric('BB posicion', bbWidthPct+'%', Number(bbWidthPct)>75?'var(--red)':Number(bbWidthPct)<25?'var(--blue)':'var(--green)')
+    + '</div></div>'
+    // 52W range
+    + '<div><div class="an-sec">Rango 52 Semanas &middot; ' + fmt(d.offHigh,1) + '% bajo maximo</div>'
+    + '<div class="an-range">'
+    + '<div class="an-range-bar"><div class="an-range-cur" style="left:' + pct52 + '%"></div></div>'
+    + '<div class="an-range-labels">'
+    + '<span>Min $' + fmt(d.l52) + '</span>'
+    + '<span style="color:' + offColor + '">-' + fmt(d.offHigh,1) + '% del max</span>'
+    + '<span>Max $' + fmt(d.h52) + '</span>'
+    + '</div></div>'
+    + '<div style="display:flex;gap:8px;margin-top:8px">'
+    + '<div class="an-metric" style="flex:1"><div class="an-metric-l">Dia Alto</div><div class="an-metric-v">$' + fmt(d.dayHigh) + '</div></div>'
+    + '<div class="an-metric" style="flex:1"><div class="an-metric-l">Dia Bajo</div><div class="an-metric-v">$' + fmt(d.dayLow) + '</div></div>'
+    + '<div class="an-metric" style="flex:1"><div class="an-metric-l">Volumen</div><div class="an-metric-v">' + volStr + '</div></div>'
+    + '</div></div>'
+    // fundamentals
+    + '<div><div class="an-sec">Fundamentales</div><div class="an-metrics">'
+    + metric('Mkt Cap', capStr)
+    + metric('P/E (TTM)', d.pe ? fmt(d.pe,1)+'x' : '—')
+    + metric('Div. Yield', d.divYield ? fmt(d.divYield*100,2)+'%' : '—', d.divYield>0?'var(--purple)':'')
+    + metric('BB Upper', '$'+fmt(d.bbu))
+    + metric('BB Lower', '$'+fmt(d.bbl))
+    + metric('BB Basis', '$'+fmt(d.bbb))
+    + '</div></div>'
+    // TV link
+    + '<div style="text-align:center;margin-top:4px">'
+    + '<a href="' + tvUrl + '" target="_blank" style="display:inline-block;padding:9px 22px;background:var(--pqf3);border:1px solid var(--pqf);color:var(--pqf2);border-radius:8px;text-decoration:none;font-size:11px;font-weight:700;transition:.2s" onmouseover="this.style.background=\'var(--pqf)\';this.style.color=\'#fff\'" onmouseout="this.style.background=\'var(--pqf3)\';this.style.color=\'var(--pqf2)\'">'
+    + 'Ver en TradingView &rarr;</a></div>'
+    + '<div class="an-ts">TradingView Scanner &middot; ' + d.timestamp + '</div>'
+    + '</div>';
+}
 
 // ══ Init ═════════════════════════════════════════════════════
 setLang(currentLang);
