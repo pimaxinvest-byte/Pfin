@@ -191,6 +191,8 @@ func fetchTop5FromTV() []StockData {
 // Static data updated manually every Monday 23:59 CET.
 // Live prices fetched from TV Scanner on each /api/weekly call.
 
+// ─── Weekly data structs ────────────────────────────────────────
+
 type WeeklyStock struct {
 	TVSym     string  `json:"-"`
 	Symbol    string  `json:"symbol"`
@@ -201,6 +203,28 @@ type WeeklyStock struct {
 	Rec       float64 `json:"rec"`
 }
 
+// QualityStock — one row of the Quality-at-a-Discount screen.
+// Static metrics (ROIC/FCF/etc.) updated by Pietro each Monday via web research.
+// OffHigh is computed live from TV Scanner 52W high vs current price.
+type QualityStock struct {
+	TVSym     string  `json:"-"`
+	Symbol    string  `json:"symbol"`
+	Name      string  `json:"name"`
+	ROIC      float64 `json:"roic"`      // % TTM;  -999 = INSUFFICIENT DATA
+	FCFMargin float64 `json:"fcfMargin"` // % TTM;  -999 = N/A
+	NdEbitda  float64 `json:"ndEbitda"`  // x ratio; negative = net cash; -999 = N/A
+	RevGrowth float64 `json:"revGrowth"` // % YoY;  -999 = N/A
+	FwdLtTtl  bool    `json:"fwdLtTtl"`  // Fwd P/E < Trailing P/E (improving outlook)
+	OffHigh   float64 `json:"offHigh"`   // % below 52W high — computed live
+	Score     int     `json:"score"`
+	Tier      string  `json:"tier"`
+	Thesis    string  `json:"thesis"`
+	Price     float64 `json:"price"`  // live
+	Change    float64 `json:"change"` // live
+	Rec       float64 `json:"rec"`    // live
+	H52       float64 `json:"h52"`    // live
+}
+
 type WeeklyMeta struct {
 	Theme      string `json:"theme"`
 	ThemeEmoji string `json:"themeEmoji"`
@@ -208,7 +232,9 @@ type WeeklyMeta struct {
 	UpdatedAt  string `json:"updatedAt"`
 }
 
-// ── UPDATE EVERY MONDAY 23:59 CET ──────────────────────────────
+// ══ UPDATE EVERY MONDAY 23:59 CET ══════════════════════════════
+// Data vintage: Q1 2025 (TTM). Verify/refresh each Monday via web.
+
 var wkMeta = WeeklyMeta{
 	Theme:      "AI Infrastructure",
 	ThemeEmoji: "🤖",
@@ -216,45 +242,119 @@ var wkMeta = WeeklyMeta{
 	UpdatedAt:  "Lun 26 May 2026 · 23:59 CET",
 }
 
+// GROWTH: top 5 from TradingView screener by Recommend.All — high momentum
 var wkGrowth = []WeeklyStock{
-	{TVSym: "NASDAQ:NVDA", Symbol: "NVDA", Name: "NVIDIA Corporation", Rationale: "Monopolio GPU entrenamiento e inferencia IA — ecosistema CUDA sin rival"},
-	{TVSym: "NASDAQ:AVGO", Symbol: "AVGO", Name: "Broadcom Inc.", Rationale: "ASICs custom para hyperscalers + switches Ethernet Tomahawk 5"},
-	{TVSym: "NYSE:ANET", Symbol: "ANET", Name: "Arista Networks", Rationale: "Backbone de red en data centers IA — ganando cuota a Cisco"},
-	{TVSym: "NASDAQ:MRVL", Symbol: "MRVL", Name: "Marvell Technology", Rationale: "Silicon personalizado + interconexión óptica para clusters IA"},
-	{TVSym: "NASDAQ:MU", Symbol: "MU", Name: "Micron Technology", Rationale: "Memoria HBM3E — cuello de botella crítico para GPUs NVDA/AMD"},
+	{TVSym: "NASDAQ:NVDA", Symbol: "NVDA", Name: "NVIDIA Corporation", Rationale: "Monopolio GPU para entrenamiento e inferencia IA — ecosistema CUDA sin rival"},
+	{TVSym: "NASDAQ:AVGO", Symbol: "AVGO", Name: "Broadcom Inc.", Rationale: "ASICs custom para hyperscalers (Google/Meta) + switches Tomahawk 5"},
+	{TVSym: "NYSE:ANET", Symbol: "ANET", Name: "Arista Networks", Rationale: "Switches EX9 800G — único merchant silicon para clusters IA >1.000 GPUs"},
+	{TVSym: "NASDAQ:MRVL", Symbol: "MRVL", Name: "Marvell Technology", Rationale: "Interconnect custom en Google TPU v5, AWS Trainium2 y Microsoft Maia"},
+	{TVSym: "NASDAQ:MU", Symbol: "MU", Name: "Micron Technology", Rationale: "Memoria HBM3E — cuello de botella crítico, Nvidia paga prima de suministro"},
 }
 
-var wkValue = []WeeklyStock{
-	{TVSym: "NYSE:IBM", Symbol: "IBM", Name: "IBM Corporation", Rationale: "watsonx enterprise AI + consulting, P/E ~25x, dividendo estable 3%"},
-	{TVSym: "NYSE:DELL", Symbol: "DELL", Name: "Dell Technologies", Rationale: "Servidores PowerEdge IA a ~8x beneficios, backlog en récord"},
-	{TVSym: "NASDAQ:QCOM", Symbol: "QCOM", Name: "Qualcomm Inc.", Rationale: "IA on-device Snapdragon, P/E 15x, yield 2.5%, ciclo móvil alcista"},
-	{TVSym: "NASDAQ:INTC", Symbol: "INTC", Name: "Intel Corporation", Rationale: "Deep value en transición, Gaudi 3 IA, cotiza bajo valor contable"},
-	{TVSym: "NYSE:HPE", Symbol: "HPE", Name: "Hewlett Packard Enterprise", Rationale: "Servidores IA liquid-cooling, márgenes al alza, P/E 10x"},
+// QUALITY: 25-stock AI Infrastructure universe scored by Quality-at-a-Discount
+// Top 5 non-growth stocks by score → VALUE picks (computed in weeklyHandler)
+// ROIC/FCF/ND-EBITDA/RevGrowth: TTM Q1 2025 — refresh each Monday
+var wkQuality = []QualityStock{
+	// ── Score 100 (4 quality + 2 discount) ──
+	{TVSym: "NASDAQ:LRCX", Symbol: "LRCX", Name: "Lam Research Corp.", ROIC: 42, FCFMargin: 26, NdEbitda: -0.8, RevGrowth: 16, FwdLtTtl: true, Thesis: "Deposición líder de mercado; gasto en fabs front-end en China robusto pese a controles de exportación"},
+	{TVSym: "NASDAQ:KLAC", Symbol: "KLAC", Name: "KLA Corporation", ROIC: 39, FCFMargin: 28, NdEbitda: -0.5, RevGrowth: 12, FwdLtTtl: true, Thesis: "Monopolio de process control — cada nuevo nodo de fab requiere 2× más pasos de inspección"},
+	{TVSym: "NASDAQ:NTAP", Symbol: "NTAP", Name: "NetApp Inc.", ROIC: 32, FCFMargin: 22, NdEbitda: 1.1, RevGrowth: 6, FwdLtTtl: true, Thesis: "StorageGRID es el S3 object store por defecto en los data lakes híbridos de IA empresarial"},
+	{TVSym: "NASDAQ:QCOM", Symbol: "QCOM", Name: "Qualcomm Inc.", ROIC: 30, FCFMargin: 24, NdEbitda: 0.3, RevGrowth: 9, FwdLtTtl: true, Thesis: "Snapdragon X Elite captura 30%+ del mercado premium laptop; ciclo de renovación móvil IA comenzando"},
+	{TVSym: "NASDAQ:STX", Symbol: "STX", Name: "Seagate Technology", ROIC: 22, FCFMargin: 18, NdEbitda: 1.8, RevGrowth: 14, FwdLtTtl: true, Thesis: "HDDs nearline 28TB HAMR — capa de almacenamiento más barata para datasets de entrenamiento IA"},
+	// ── Score 90 ──
+	{TVSym: "NASDAQ:AMAT", Symbol: "AMAT", Name: "Applied Materials Inc.", ROIC: 25, FCFMargin: 22, NdEbitda: -0.4, RevGrowth: 7, FwdLtTtl: true, Thesis: "Transición gate-all-around añade +$1B de gasto incremental en equipos por cada nuevo nodo de fab"},
+	{TVSym: "NYSE:DELL", Symbol: "DELL", Name: "Dell Technologies", ROIC: 28, FCFMargin: 5, NdEbitda: 0.9, RevGrowth: 9, FwdLtTtl: true, Thesis: "Único distribuidor autorizado de DGX H100/H200 para enterprise — backlog de 3-4 meses"},
+	{TVSym: "NYSE:VRT", Symbol: "VRT", Name: "Vertiv Holdings", ROIC: 32, FCFMargin: 8, NdEbitda: 1.3, RevGrowth: 21, FwdLtTtl: true, Thesis: "Patentes de liquid cooling generan contratos de servicio de 5 años — no hay alternativa viable para racks >100kW"},
+	// ── Score 80 (quality full, sin descuento) ──
+	{TVSym: "NASDAQ:NVDA", Symbol: "NVDA", Name: "NVIDIA Corporation", ROIC: 155, FCFMargin: 57, NdEbitda: -3.2, RevGrowth: 122, FwdLtTtl: false, Thesis: "Coste de cambio = 5-7 años de reentrenamiento para 4M desarrolladores CUDA"},
+	{TVSym: "NYSE:ANET", Symbol: "ANET", Name: "Arista Networks", ROIC: 35, FCFMargin: 32, NdEbitda: -2.1, RevGrowth: 22, FwdLtTtl: false, Thesis: "EX9 800G — único switch merchant silicon que pasa la velocidad requerida para clusters GPU >1.000 nodos"},
+	{TVSym: "NASDAQ:ARM", Symbol: "ARM", Name: "Arm Holdings", ROIC: 31, FCFMargin: 38, NdEbitda: -1.5, RevGrowth: 25, FwdLtTtl: false, Thesis: "Las extensiones ISA para IA multiplican la tasa de royalties ×3 desde 2022 — royalties sobre cada chip IA"},
+	// ── Score 80 (ROIC bajo pero descuento fuerte) ──
+	{TVSym: "NASDAQ:AMD", Symbol: "AMD", Name: "Advanced Micro Devices", ROIC: 8, FCFMargin: 12, NdEbitda: -0.3, RevGrowth: 14, FwdLtTtl: true, Thesis: "MI300X en producción en Microsoft/Meta/Oracle; EPYC Turin gana 1/3 de renovaciones CPU en hyperscalers"},
+	{TVSym: "NASDAQ:ADI", Symbol: "ADI", Name: "Analog Devices Inc.", ROIC: 15, FCFMargin: 28, NdEbitda: 1.2, RevGrowth: -7, FwdLtTtl: true, Thesis: "Bus A2B es el estándar de audio en cada coche premium — márgenes brutos 90%+, sin competencia real"},
+	{TVSym: "NASDAQ:ON", Symbol: "ON", Name: "ON Semiconductor", ROIC: 22, FCFMargin: 15, NdEbitda: 0.4, RevGrowth: -8, FwdLtTtl: true, Thesis: "Módulos SiC en cada tren de tracción EV; migración 400V→800V duplica el contenido por vehículo"},
+	{TVSym: "NASDAQ:MPWR", Symbol: "MPWR", Name: "Monolithic Power Systems", ROIC: 24, FCFMargin: 18, NdEbitda: -0.8, RevGrowth: -3, FwdLtTtl: true, Thesis: "Solución QsBox de MPWR va en cada módulo Nvidia Grace Hopper — coste de cambio cero para OEMs"},
+	{TVSym: "NASDAQ:MRVL", Symbol: "MRVL", Name: "Marvell Technology", ROIC: 7, FCFMargin: 18, NdEbitda: 1.4, RevGrowth: 6, FwdLtTtl: true, Thesis: "Google TPU v5, AWS Trainium2 y Microsoft Maia usan el interconnect custom de Marvell"},
+	// ── Score 70 (STRONG) ──
+	{TVSym: "NASDAQ:TXN", Symbol: "TXN", Name: "Texas Instruments Inc.", ROIC: 28, FCFMargin: 22, NdEbitda: 1.0, RevGrowth: -5, FwdLtTtl: true, Thesis: "Contenido analógico por EV se duplica; utilización de fabs 300mm en mínimo histórico — apalancamiento al girar ciclo"},
+	{TVSym: "NASDAQ:SMCI", Symbol: "SMCI", Name: "Super Micro Computer", ROIC: 15, FCFMargin: -10, NdEbitda: 0.8, RevGrowth: 110, FwdLtTtl: true, Thesis: "Racks liquid-cooled en 30 días vs 90 de Dell/HPE — único vendor con liquid-to-air a escala de rack"},
+	// ── Score 50–60 (WATCH) ──
+	{TVSym: "NASDAQ:AVGO", Symbol: "AVGO", Name: "Broadcom Inc.", ROIC: 18, FCFMargin: 48, NdEbitda: 2.8, RevGrowth: 51, FwdLtTtl: false, Thesis: "Tomahawk 5 en cada ToR de hyperscaler; envíos de XPU custom a Google/Meta se triplican en 2025"},
+	{TVSym: "NYSE:HPE", Symbol: "HPE", Name: "Hewlett Packard Enterprise", ROIC: 8, FCFMargin: 4, NdEbitda: 1.4, RevGrowth: 3, FwdLtTtl: true, Thesis: "Cray EX4000 gana cada contrato de laboratorio nacional US — único supercomputador con networking propio"},
+	{TVSym: "NYSE:IBM", Symbol: "IBM", Name: "IBM Corporation", ROIC: 8, FCFMargin: 15, NdEbitda: 2.2, RevGrowth: 2, FwdLtTtl: true, Thesis: "watsonx.governance es la única plataforma de riesgo de IA certificada para EU AI Act — moat regulatorio"},
+	{TVSym: "NASDAQ:CDW", Symbol: "CDW", Name: "CDW Corporation", ROIC: 35, FCFMargin: 4, NdEbitda: 2.1, RevGrowth: -2, FwdLtTtl: true, Thesis: "Mayor VAR de EEUU; 15% attach rate en venta hardware IA enterprise sin riesgo de inventario"},
+	{TVSym: "NASDAQ:WDC", Symbol: "WDC", Name: "Western Digital Corp.", ROIC: 8, FCFMargin: -5, NdEbitda: 2.5, RevGrowth: 12, FwdLtTtl: true, Thesis: "UFS 4.0 NAND es el estándar en el diseño de referencia Qualcomm AI Phone — +40% contenido de memoria"},
+	// ── Score 20 (AVOID) ──
+	{TVSym: "NASDAQ:INTC", Symbol: "INTC", Name: "Intel Corporation", ROIC: -5, FCFMargin: -8, NdEbitda: 3.5, RevGrowth: -3, FwdLtTtl: true, Thesis: "Gaudi 3 tiene mejor MFU que H100 en fine-tuning pero carece de ecosistema — problema de gallina y huevo"},
+}
+
+func calcQualityScore(s *QualityStock) int {
+	sc := 0
+	if s.ROIC > -900 && s.ROIC >= 15 {
+		sc += 20
+	}
+	if s.FCFMargin > -900 && s.FCFMargin > 0 {
+		sc += 20
+	}
+	if s.NdEbitda > -900 && s.NdEbitda < 2 {
+		sc += 20
+	}
+	if s.RevGrowth > -900 && s.RevGrowth > 0 {
+		sc += 20
+	}
+	if s.OffHigh >= 15 {
+		sc += 10
+	}
+	if s.FwdLtTtl {
+		sc += 10
+	}
+	return sc
+}
+
+func tierLabel(score int) string {
+	switch {
+	case score >= 80:
+		return "BEST"
+	case score >= 65:
+		return "STRONG"
+	case score >= 50:
+		return "WATCH"
+	default:
+		return "AVOID"
+	}
 }
 
 func weeklyHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 
-	// Collect all tickers for live price fetch
-	all := append(append([]WeeklyStock{}, wkGrowth...), wkValue...)
-	tickers := make([]string, len(all))
-	for i, s := range all {
-		tickers[i] = s.TVSym
+	// Collect tickers: growth (5) + quality universe (25, some overlap)
+	tickerSet := map[string]string{} // sym → TVSym
+	for _, s := range wkGrowth {
+		tickerSet[s.Symbol] = s.TVSym
+	}
+	for _, s := range wkQuality {
+		tickerSet[s.Symbol] = s.TVSym
+	}
+	tickers := make([]string, 0, len(tickerSet))
+	for _, tv := range tickerSet {
+		tickers = append(tickers, tv)
 	}
 
+	// Fetch live: price, change, rec, 52W high
 	reqBody := map[string]interface{}{
 		"symbols": map[string]interface{}{
 			"tickers": tickers,
 			"query":   map[string]interface{}{"types": []string{}},
 		},
-		"columns": []string{"close", "change", "Recommend.All"},
+		"columns": []string{"close", "change", "Recommend.All", "price_52_week_high"},
 	}
 	body, _ := json.Marshal(reqBody)
 	req, _ := http.NewRequest("POST", "https://scanner.tradingview.com/america/scan", bytes.NewReader(body))
 	tvHeaders(req)
 
-	pm := map[string][3]float64{} // sym -> [price, change, rec]
+	type liveVal struct{ price, change, rec, h52 float64 }
+	lm := map[string]liveVal{}
 	if resp, err := tvCl.Do(req); err == nil {
 		defer resp.Body.Close()
 		var res struct {
@@ -265,43 +365,86 @@ func weeklyHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if json.NewDecoder(resp.Body).Decode(&res) == nil {
 			for _, item := range res.Data {
-				if len(item.D) >= 3 {
+				if len(item.D) >= 4 {
 					sym := item.S
 					if idx := strings.Index(sym, ":"); idx >= 0 {
 						sym = sym[idx+1:]
 					}
-					pm[sym] = [3]float64{toF(item.D[0]), toF(item.D[1]), toF(item.D[2])}
+					lm[sym] = liveVal{toF(item.D[0]), toF(item.D[1]), toF(item.D[2]), toF(item.D[3])}
 				}
 			}
 		}
 	}
 
-	fill := func(stocks []WeeklyStock) []WeeklyStock {
-		out := make([]WeeklyStock, len(stocks))
-		for i, s := range stocks {
-			out[i] = s
-			if p, ok := pm[s.Symbol]; ok {
-				out[i].Price = p[0]
-				out[i].Change = p[1]
-				out[i].Rec = p[2]
+	// Fill growth picks with live data
+	growth := make([]WeeklyStock, len(wkGrowth))
+	for i, s := range wkGrowth {
+		growth[i] = s
+		if lv, ok := lm[s.Symbol]; ok {
+			growth[i].Price = lv.price
+			growth[i].Change = lv.change
+			growth[i].Rec = lv.rec
+		}
+	}
+
+	// Score quality universe with live %offHigh
+	quality := make([]QualityStock, len(wkQuality))
+	for i, s := range wkQuality {
+		quality[i] = s
+		if lv, ok := lm[s.Symbol]; ok {
+			quality[i].Price = lv.price
+			quality[i].Change = lv.change
+			quality[i].Rec = lv.rec
+			quality[i].H52 = lv.h52
+			if lv.h52 > 0 {
+				quality[i].OffHigh = (lv.h52 - lv.price) / lv.h52 * 100
 			}
 		}
-		return out
+		quality[i].Score = calcQualityScore(&quality[i])
+		quality[i].Tier = tierLabel(quality[i].Score)
+	}
+
+	// Sort quality by Score desc (insertion sort, small n)
+	for i := 1; i < len(quality); i++ {
+		for j := i; j > 0 && quality[j].Score > quality[j-1].Score; j-- {
+			quality[j], quality[j-1] = quality[j-1], quality[j]
+		}
+	}
+
+	// Derive VALUE top-5: highest-scored stocks not in wkGrowth
+	growthSet := map[string]bool{}
+	for _, s := range wkGrowth {
+		growthSet[s.Symbol] = true
+	}
+	var value []WeeklyStock
+	for _, s := range quality {
+		if !growthSet[s.Symbol] && len(value) < 5 {
+			value = append(value, WeeklyStock{
+				Symbol:    s.Symbol,
+				Name:      s.Name,
+				Rationale: s.Thesis,
+				Price:     s.Price,
+				Change:    s.Change,
+				Rec:       s.Rec,
+			})
+		}
 	}
 
 	type Resp struct {
-		Meta      WeeklyMeta    `json:"meta"`
-		Growth    []WeeklyStock `json:"growth"`
-		Value     []WeeklyStock `json:"value"`
-		Timestamp string        `json:"timestamp"`
+		Meta      WeeklyMeta     `json:"meta"`
+		Growth    []WeeklyStock  `json:"growth"`
+		Value     []WeeklyStock  `json:"value"`
+		Quality   []QualityStock `json:"quality"`
+		Timestamp string         `json:"timestamp"`
 	}
 	json.NewEncoder(w).Encode(Resp{
 		Meta:      wkMeta,
-		Growth:    fill(wkGrowth),
-		Value:     fill(wkValue),
+		Growth:    growth,
+		Value:     value,
+		Quality:   quality,
 		Timestamp: time.Now().UTC().Format("Mon 02 Jan 2006 — 15:04:05 UTC"),
 	})
-	fmt.Printf("[weekly] %d growth + %d value · prices fetched\n", len(wkGrowth), len(wkValue))
+	fmt.Printf("[weekly] growth=%d value=%d quality=%d\n", len(growth), len(value), len(quality))
 }
 
 // ─── TradingView Scanner — Global Indices ──────────────────────
@@ -732,6 +875,28 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
 .wk-name{font-size:10px;color:var(--muted);margin-bottom:4px}
 .wk-why{font-size:10px;color:#8eac92;line-height:1.4}
 .weekly-foot{margin-top:10px;font-size:9px;color:#444;font-family:'JetBrains Mono',monospace;text-align:right}
+/* ── QUALITY TABLE ── */
+.qtable{width:100%;border-collapse:collapse;font-size:10px;margin-top:4px}
+.qtable th{color:var(--muted);font-weight:600;text-align:left;padding:4px 6px;border-bottom:1px solid var(--border);white-space:nowrap;font-size:9px;letter-spacing:.4px}
+.qtable th.r,.qtable td.r{text-align:right}
+.qtable td{padding:4px 6px;border-bottom:1px solid #111;vertical-align:middle}
+.qtable tr:hover td{background:#0d1c10}
+.qtable tr.q-best td:first-child{border-left:2px solid #4ade80}
+.qtable tr.q-strong td:first-child{border-left:2px solid var(--gold)}
+.qtable tr.q-watch td:first-child{border-left:2px solid #888}
+.qtable tr.q-avoid td:first-child{border-left:2px solid #ef4444}
+.q-sym{font-weight:700;font-family:'JetBrains Mono',monospace;font-size:11px;color:#e8f5e9}
+.q-name{font-size:9px;color:var(--muted)}
+.q-score{font-weight:700;font-family:'JetBrains Mono',monospace}
+.q-tier{font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;white-space:nowrap}
+.q-tier.BEST{background:#14532d;color:#4ade80}
+.q-tier.STRONG{background:#713f12;color:#fbbf24}
+.q-tier.WATCH{background:#1e293b;color:#94a3b8}
+.q-tier.AVOID{background:#450a0a;color:#f87171}
+.q-ok{color:#4ade80}.q-bad{color:#ef4444}.q-na{color:#444}
+.q-thesis{font-size:9px;color:#6b8c6e;max-width:220px}
+.value-picks-hdr{font-size:10px;font-weight:700;color:var(--gold);margin:12px 0 6px;letter-spacing:.4px}
+.qt-note{font-size:9px;color:#444;margin-bottom:6px;font-family:'JetBrains Mono',monospace}
 </style>
 </head>
 <body>
@@ -816,10 +981,24 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
           <div class="loading"><div class="spinner"></div></div>
         </div>
       </div>
-      <div>
-        <div class="col-hdr value">💎 VALUE — Exposición IA a precio razonable</div>
+      <div style="overflow:hidden">
+        <div class="col-hdr value">💎 VALUE — Quality at a Discount Screen</div>
+        <div class="qt-note">Universo: 25 tickers AI Infrastructure · Score /100 · %High: precio live</div>
+        <div class="value-picks-hdr" id="value-picks-label">⭐ Top 5 Selección VALUE</div>
         <div class="wk-cards" id="weekly-value">
           <div class="loading"><div class="spinner"></div></div>
+        </div>
+        <div style="margin-top:12px;overflow-x:auto">
+          <table class="qtable" id="quality-table">
+            <thead><tr>
+              <th>Rk</th><th>Ticker</th>
+              <th class="r">ROIC%</th><th class="r">FCF%</th>
+              <th class="r">ND/EBITDA</th><th class="r">RevGr%</th>
+              <th class="r">%Máx52</th><th class="r">Score</th>
+              <th>Tier</th><th>Thesis</th>
+            </tr></thead>
+            <tbody id="quality-tbody"><tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">Cargando…</td></tr></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -1072,9 +1251,43 @@ function renderWeekly(d) {
   document.getElementById('weekly-theme').textContent = m.themeEmoji + ' ' + m.theme;
   document.getElementById('weekly-dates').textContent = 'Semana ' + m.dateRange;
   document.getElementById('weekly-ts').textContent =
-    '🟢 Live · TradingView Scanner · ' + (d.timestamp||'') + ' · Tema actualizado: ' + m.updatedAt;
+    '🟢 Live · TradingView Scanner · ' + (d.timestamp||'') + ' · Actualizado: ' + m.updatedAt;
   renderWeeklyCards('weekly-growth', d.growth, 'growth');
   renderWeeklyCards('weekly-value',  d.value,  'value');
+  if (d.quality) renderQualityTable(d.quality);
+}
+
+function renderQualityTable(rows) {
+  const tbody = document.getElementById('quality-tbody');
+  if (!tbody || !rows || !rows.length) return;
+  const fmtQ = (v, good) => {
+    if (v <= -900) return '<span class="q-na">N/D</span>';
+    const cls = good(v) ? 'q-ok' : 'q-bad';
+    return '<span class="' + cls + '">' + fmt(v, 1) + '</span>';
+  };
+  const fmtNd = v => {
+    if (v <= -900) return '<span class="q-na">N/D</span>';
+    if (v < 0) return '<span class="q-ok">caja</span>';
+    return '<span class="' + (v < 2 ? 'q-ok' : 'q-bad') + '">' + fmt(v,1) + 'x</span>';
+  };
+  tbody.innerHTML = rows.map((s, i) => {
+    const tr = 'q-' + (s.tier||'watch').toLowerCase();
+    const offH = s.offHigh > 0 ? '<span class="' + (s.offHigh >= 15 ? 'q-ok' : 'q-bad') + '">-' + fmt(s.offHigh,1) + '%</span>' : '<span class="q-na">—</span>';
+    const flt = s.fwdLtTtl ? '<span class="q-ok">✓</span>' : '<span class="q-bad">✗</span>';
+    const priceStr = s.price ? ' <span style="font-size:9px;color:#888">$' + fmt(s.price) + '</span>' : '';
+    return '<tr class="' + tr + '">'
+      + '<td style="color:#555;font-size:9px">' + (i+1) + '</td>'
+      + '<td><div class="q-sym">' + s.symbol + priceStr + '</div><div class="q-name">' + (s.name||'').substring(0,22) + '</div></td>'
+      + '<td class="r">' + fmtQ(s.roic, v => v >= 15) + '</td>'
+      + '<td class="r">' + fmtQ(s.fcfMargin, v => v > 0) + '</td>'
+      + '<td class="r">' + fmtNd(s.ndEbitda) + '</td>'
+      + '<td class="r">' + fmtQ(s.revGrowth, v => v > 0) + ' ' + flt + '</td>'
+      + '<td class="r">' + offH + '</td>'
+      + '<td class="r q-score" style="color:' + (s.score>=80?'#4ade80':s.score>=65?'#fbbf24':s.score>=50?'#94a3b8':'#f87171') + '">' + s.score + '</td>'
+      + '<td><span class="q-tier ' + (s.tier||'AVOID') + '">' + (s.tier||'?') + '</span></td>'
+      + '<td class="q-thesis">' + (s.thesis||'').substring(0,80) + '</td>'
+      + '</tr>';
+  }).join('');
 }
 
 function renderWeeklyCards(id, stocks, type) {
