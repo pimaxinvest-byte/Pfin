@@ -129,7 +129,7 @@ func fetchTop5FromTV() []StockData {
 			"market_cap_basic",
 			"price_earnings_ttm",
 			"dividends_yield_current",
-			"High.All", "Low.All",
+			"price_52_week_high", "price_52_week_low",
 		},
 	}
 	body, _ := json.Marshal(reqBody)
