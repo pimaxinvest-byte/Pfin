@@ -124,7 +124,7 @@ func fetchTop5FromTV() []StockData {
 		"sort":  map[string]interface{}{"sortBy": "Recommend.All", "sortOrder": "desc"},
 		"range": []int{0, 5},
 		"columns": []string{
-			"name", "close", "change",
+			"description", "close", "change",
 			"Recommend.All",
 			"market_cap_basic",
 			"price_earnings_ttm",
