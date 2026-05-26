@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -860,6 +862,254 @@ func analyzeHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[analyze] %s %s $%.2f\n", tvSym, recLabel(toF(d[4])), price)
 }
 
+// ─── Noticias Expansión — RSS ──────────────────────────────────
+
+type rssRawItem struct {
+	Title      string   `xml:"title"`
+	Link       string   `xml:"link"`
+	PubDate    string   `xml:"pubDate"`
+	Categories []string `xml:"category"` // multiple <category> tags
+	GUID       string   `xml:"guid"`
+	Desc       string   `xml:"description"`
+	MediaDesc  string   `xml:"http://search.yahoo.com/mrss/ description"`
+	MediaSect  string   `xml:"http://search.yahoo.com/mrss/ title"`
+	Creator    string   `xml:"http://purl.org/dc/elements/1.1/ creator"`
+}
+
+// bestCategory picks the most meaningful category from the list.
+// Expansión often has "Artículos AUTHOR" as a category — skip those.
+func bestCategory(cats []string) string {
+	for _, c := range cats {
+		if !strings.HasPrefix(c, "Artículos ") && c != "" {
+			return c
+		}
+	}
+	if len(cats) > 0 { return cats[0] }
+	return ""
+}
+
+type NoticiaItem struct {
+	Title    string `json:"title"`
+	Link     string `json:"link"`
+	Section  string `json:"section"`
+	Summary  string `json:"summary"`
+	Author   string `json:"author"`
+	RelTime  string `json:"relTime"`
+	PubDate  string `json:"pubDate"`
+}
+
+// Strips basic HTML tags (no import needed)
+func stripHTML(s string) string {
+	var b strings.Builder
+	in := false
+	for _, r := range s {
+		if r == '<' { in = true; continue }
+		if r == '>' { in = false; continue }
+		if !in { b.WriteRune(r) }
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func relTimeES(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "ahora mismo"
+	case d < time.Hour:
+		m := int(d.Minutes())
+		if m == 1 { return "hace 1 min" }
+		return fmt.Sprintf("hace %d min", m)
+	case d < 24*time.Hour:
+		h := int(d.Hours())
+		if h == 1 { return "hace 1 hora" }
+		return fmt.Sprintf("hace %d horas", h)
+	default:
+		days := int(d.Hours() / 24)
+		if days == 1 { return "hace 1 día" }
+		return fmt.Sprintf("hace %d días", days)
+	}
+}
+
+func titleCaseES(s string) string {
+	words := strings.Fields(s)
+	for i, w := range words {
+		if len(w) == 0 { continue }
+		r := []rune(w)
+		r[0] = []rune(strings.ToUpper(string(r[0])))[0]
+		words[i] = string(r)
+	}
+	return strings.Join(words, " ")
+}
+
+var expansionRSSFeeds = []struct{ url, label string }{
+	{"https://e00-expansion.uecdn.es/rss/portada.xml",  "Portada"},
+	{"https://e00-expansion.uecdn.es/rss/mercados.xml", "Mercados"},
+	{"https://e00-expansion.uecdn.es/rss/empresas.xml", "Empresas"},
+	{"https://e00-expansion.uecdn.es/rss/economia.xml", "Economía"},
+}
+
+// parseExpansionRSS uses token-based XML parsing to correctly distinguish
+// <title> (article headline) from <media:title> (section label). Go's
+// struct-tag-based decoder matches both to xml:"title", causing overwrites.
+func parseExpansionRSS(dec *xml.Decoder) ([]rssRawItem, error) {
+	const mediaNS = "http://search.yahoo.com/mrss/"
+	const dcNS    = "http://purl.org/dc/elements/1.1/"
+
+	var items []rssRawItem
+	var cur *rssRawItem      // non-nil while inside <item>
+	var field *string        // points to current text-accumulation target
+	var depth int            // nesting depth inside <item>
+
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			break // io.EOF or real error — either way stop
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			ns, local := t.Name.Space, t.Name.Local
+			if cur == nil {
+				if local == "item" {
+					items = append(items, rssRawItem{})
+					cur = &items[len(items)-1]
+					depth = 0
+				}
+				continue
+			}
+			depth++
+			field = nil // reset; set below if recognised
+			switch {
+			case ns == "" || ns == "rss": // no-namespace elements
+				switch local {
+				case "title":       field = &cur.Title
+				case "link":        field = &cur.Link
+				case "pubDate":     field = &cur.PubDate
+				case "description": field = &cur.Desc
+				case "guid":        field = &cur.GUID
+				case "category":
+					cur.Categories = append(cur.Categories, "")
+					field = &cur.Categories[len(cur.Categories)-1]
+				}
+			case ns == mediaNS:
+				switch local {
+				case "description": field = &cur.MediaDesc
+				case "title":       field = &cur.MediaSect
+				}
+			case ns == dcNS:
+				if local == "creator" { field = &cur.Creator }
+			}
+
+		case xml.EndElement:
+			if cur == nil { continue }
+			if t.Name.Local == "item" && depth == 0 {
+				cur = nil
+			} else {
+				depth--
+			}
+			field = nil
+
+		case xml.CharData:
+			if field != nil {
+				*field += string(t) // accumulate (CDATA may split)
+			}
+		}
+	}
+	return items, nil
+}
+
+func fetchExpansionFeed(url string) ([]rssRawItem, error) {
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; PQF/1.1)")
+	req.Header.Set("Accept", "application/rss+xml, application/xml, text/xml")
+	resp, err := tvCl.Do(req)
+	if err != nil { return nil, err }
+	defer resp.Body.Close()
+	return parseExpansionRSS(xml.NewDecoder(resp.Body))
+}
+
+// RFC1123Z layout used by Expansión: "Mon, 02 Jan 2006 15:04:05 -0700"
+const rssTimeLayout = "Mon, 02 Jan 2006 15:04:05 -0700"
+
+func noticiasHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	type itemWithTime struct {
+		item NoticiaItem
+		t    time.Time
+	}
+
+	seen := map[string]bool{}
+	var collected []itemWithTime
+
+	for _, feed := range expansionRSSFeeds {
+		items, err := fetchExpansionFeed(feed.url)
+		if err != nil {
+			fmt.Printf("[noticias] %s: %v\n", feed.label, err)
+			continue
+		}
+		for _, raw := range items {
+			key := raw.GUID
+			if key == "" { key = raw.Link }
+			if seen[key] { continue }
+			seen[key] = true
+
+			// section label: media:title (uppercase) → best category → feed label
+			section := raw.MediaSect
+			if section == "" { section = bestCategory(raw.Categories) }
+			if section == "" { section = feed.label }
+			// Title-case the section (media:title comes as all-caps e.g. "ENERGÍA")
+			section = titleCaseES(strings.ToLower(section))
+
+			// summary — prefer media:description (plain text), fall back to strip HTML
+			summary := raw.MediaDesc
+			if summary == "" { summary = stripHTML(raw.Desc) }
+			if len(summary) > 220 { summary = summary[:220] + "…" }
+
+			// parse pubDate for sorting
+			t, _ := time.Parse(rssTimeLayout, strings.TrimSpace(raw.PubDate))
+
+			collected = append(collected, itemWithTime{
+				item: NoticiaItem{
+					Title:   strings.TrimSpace(raw.Title),
+					Link:    strings.TrimSpace(raw.Link),
+					Section: section,
+					Summary: summary,
+					Author:  raw.Creator,
+					PubDate: raw.PubDate,
+				},
+				t: t,
+			})
+		}
+	}
+
+	// Sort newest first
+	sort.Slice(collected, func(i, j int) bool {
+		return collected[i].t.After(collected[j].t)
+	})
+
+	// Fill relative times and cap at 40 items
+	max := 40
+	if len(collected) < max { max = len(collected) }
+	out := make([]NoticiaItem, max)
+	for i := 0; i < max; i++ {
+		out[i] = collected[i].item
+		out[i].RelTime = relTimeES(collected[i].t)
+	}
+
+	type Resp struct {
+		Items     []NoticiaItem `json:"items"`
+		Timestamp string        `json:"timestamp"`
+		Count     int           `json:"count"`
+	}
+	json.NewEncoder(w).Encode(Resp{
+		Items:     out,
+		Timestamp: time.Now().UTC().Format("Mon 02 Jan 2006 — 15:04:05 UTC"),
+		Count:     len(out),
+	})
+	fmt.Printf("[noticias] %d items servidos\n", len(out))
+}
+
 func apiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
@@ -912,6 +1162,7 @@ func main() {
 	http.HandleFunc("/api/ibex", ibexHandler)
 	http.HandleFunc("/api/weekly", weeklyHandler)
 	http.HandleFunc("/api/analyze", analyzeHandler)
+	http.HandleFunc("/api/noticias", noticiasHandler)
 	u := "http://localhost:" + port
 	fmt.Println("╔══════════════════════════════════════╗")
 	fmt.Println("║  Pietro Quantum Finance — PQF        ║")
@@ -1181,6 +1432,55 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
 .deep-block-body{font-size:10px;color:#8eac92;line-height:1.55}
 .deep-src{font-size:8px;color:#3d5c40;margin-top:3px;font-style:italic;line-height:1.4}
 
+/* ── NOTICIAS EXPANSIÓN ── */
+.news-wrap{padding:16px 20px;display:flex;flex-direction:column;gap:14px}
+.news-top-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.news-source{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.news-source strong{color:#e34a4a;font-size:12px}
+.news-ts{font-size:10px;color:#444;font-family:'JetBrains Mono',monospace}
+.news-filters{display:flex;gap:5px;flex-wrap:wrap}
+.nf-btn{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:10px;font-weight:700;padding:4px 11px;cursor:pointer;transition:.15s;letter-spacing:.2px}
+.nf-btn:hover{color:var(--text)}
+.nf-btn.on{background:var(--bg4);color:var(--text);border-color:var(--pqf)}
+/* news grid */
+.news-grid{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+@media(max-width:900px){.news-grid{grid-template-columns:1fr}}
+/* main feed */
+.news-feed{display:flex;flex-direction:column;gap:0}
+.news-card{display:flex;gap:12px;padding:13px 2px;border-bottom:1px solid var(--border);transition:background .15s;cursor:pointer;text-decoration:none;color:inherit}
+.news-card:hover{background:var(--card)}
+.news-card:last-child{border-bottom:none}
+.news-card-main{flex:1;min-width:0}
+.news-badge{display:inline-block;font-size:8.5px;font-weight:800;padding:2px 7px;border-radius:3px;letter-spacing:.5px;text-transform:uppercase;margin-bottom:5px}
+.news-headline{font-size:13.5px;font-weight:700;line-height:1.45;color:var(--text);margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.news-card:hover .news-headline{color:var(--pqf2)}
+.news-summary{font-size:11px;color:var(--muted);line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:5px}
+.news-meta{font-size:9.5px;color:#444;display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace}
+.news-author{color:#555}
+.news-reltime{color:var(--pqf);font-weight:600}
+/* hero cards (top 2) */
+.news-heroes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+@media(max-width:700px){.news-heroes{grid-template-columns:1fr}}
+.news-hero{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px;text-decoration:none;color:inherit;transition:.2s;border-top:3px solid #e34a4a}
+.news-hero:hover{border-color:var(--pqf2);background:var(--card2)}
+.news-hero .news-headline{font-size:15px;-webkit-line-clamp:3}
+.news-hero .news-summary{-webkit-line-clamp:3}
+/* sidebar */
+.news-sidebar{display:flex;flex-direction:column;gap:10px}
+.news-sidebar-card{background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px}
+.news-sidebar-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.news-sidebar-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.nsb-item{padding:7px 0;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:flex-start}
+.nsb-item:last-child{border-bottom:none;padding-bottom:0}
+.nsb-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.nsb-txt{font-size:11px;color:var(--text);line-height:1.4;font-weight:500}
+.nsb-meta{font-size:9px;color:#444;font-family:'JetBrains Mono',monospace;margin-top:2px}
+.news-sec-stat{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)}
+.news-sec-stat:last-child{border-bottom:none}
+.news-sec-name{font-size:10px;font-weight:600}
+.news-sec-count{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted)}
+.news-empty{text-align:center;padding:40px;color:var(--muted);font-size:12px}
+
 /* ── STOCK ANALYZER ── */
 .an-bar{display:flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:2px 2px 2px 8px;transition:border-color .2s}
 .an-bar:focus-within{border-color:var(--pqf)}
@@ -1254,6 +1554,7 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
   <div class="tab-nav">
     <button class="tab-btn active" onclick="setTab('global')" id="tab-btn-global">🌍 Global</button>
     <button class="tab-btn" onclick="setTab('ibex')" id="tab-btn-ibex">📊 IBEX 35</button>
+    <button class="tab-btn" onclick="setTab('noticias')" id="tab-btn-noticias">📰 Expansión</button>
   </div>
 
   <div class="hdr-right">
@@ -1385,6 +1686,43 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
   </div>
 </div>
 
+<!-- ══ NOTICIAS EXPANSIÓN TAB ══ -->
+<div class="tab-content" id="tab-noticias">
+  <div class="news-wrap">
+    <div class="news-top-bar">
+      <div class="news-source">
+        <strong>Expansión</strong>
+        <span>— Noticias financieras en tiempo real</span>
+        <span class="live-badge" style="font-size:9px;padding:3px 8px"><div class="live-dot"></div>RSS Live</span>
+      </div>
+      <div class="news-ts" id="news-ts">Cargando…</div>
+    </div>
+    <div class="news-filters" id="news-filters">
+      <button class="nf-btn on" onclick="setNewsFilter('ALL',this)">Todas</button>
+    </div>
+    <div class="loading" id="news-loading"><div class="spinner"></div>Cargando noticias…</div>
+    <div id="news-content" style="display:none">
+      <div class="news-heroes" id="news-heroes"></div>
+      <div class="news-grid">
+        <div>
+          <div class="sec-title" style="margin-bottom:8px">📋 Últimas noticias</div>
+          <div class="news-feed" id="news-feed"></div>
+        </div>
+        <div class="news-sidebar">
+          <div class="news-sidebar-card">
+            <div class="news-sidebar-title">🔥 Más recientes</div>
+            <div id="news-latest"></div>
+          </div>
+          <div class="news-sidebar-card">
+            <div class="news-sidebar-title">📂 Por sección</div>
+            <div id="news-sections"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <footer>
   <span data-i18n="footerLeft">Datos: TradingView Scanner · Auto-refresh 60s</span>
   <span><span class="footer-brand">Pietro Quantum Finance — PQF</span> &nbsp;·&nbsp; <span data-i18n="footerRight">Solo informativo</span></span>
@@ -1479,6 +1817,7 @@ function setTab(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
   document.getElementById('tab-btn-' + tab).classList.add('active');
   if (tab === 'ibex') loadIbex();
+  if (tab === 'noticias') loadNoticias();
 }
 
 // ══ Formatters ════════════════════════════════════════════════
@@ -1926,6 +2265,138 @@ function buildIbexTable() {
 
 function buildIbexAll() { buildIbexKPI(); buildIbexSentiment(); buildIbexFilters(); buildIbexCards(getFiltered()); buildIbexTable(); }
 
+// ══ Noticias Expansión ════════════════════════════════════════
+let noticiasLoaded = false;
+let noticiasData = [];
+let newsFilter = 'ALL';
+
+function secColor(sec) {
+  const s = (sec || '').toUpperCase();
+  if (s.includes('MERCADO') || s.includes('BOLSA') || s.includes('EURIBOR') || s.includes('CRONICA') || s.includes('CRÓNICA')) return {color:'#3b82f6', bg:'rgba(59,130,246,.15)'};
+  if (s.includes('EMPRESA')) return {color:'var(--pqf2)', bg:'rgba(43,122,53,.15)'};
+  if (s.includes('ECONOM')) return {color:'var(--gold)', bg:'rgba(201,168,76,.15)'};
+  if (s.includes('ENERG')) return {color:'#f97316', bg:'rgba(249,115,22,.15)'};
+  if (s.includes('BANCA') || s.includes('DIRECT')) return {color:'var(--purple)', bg:'rgba(167,139,250,.15)'};
+  if (s.includes('FINANCIAL') || s.includes('FT')) return {color:'#f43f5e', bg:'rgba(244,63,94,.15)'};
+  if (s.includes('TECNO') || s.includes('DIGITAL')) return {color:'#06b6d4', bg:'rgba(6,182,212,.15)'};
+  if (s.includes('FISCAL') || s.includes('NORMA')) return {color:'#eab308', bg:'rgba(234,179,8,.15)'};
+  if (s.includes('AHORRO') || s.includes('PENSIÓN') || s.includes('FONDOS')) return {color:'#14b8a6', bg:'rgba(20,184,166,.15)'};
+  if (s.includes('INMOBIL') || s.includes('VIVIENDA')) return {color:'#a78bfa', bg:'rgba(167,139,250,.15)'};
+  return {color:'var(--muted)', bg:'var(--bg4)'};
+}
+
+function newsBadge(sec) {
+  const c = secColor(sec);
+  return '<span class="news-badge" style="color:' + c.color + ';background:' + c.bg + '">' + (sec || '').toUpperCase().substring(0,18) + '</span>';
+}
+
+function newsCardHTML(item) {
+  return '<a class="news-card" href="' + item.link + '" target="_blank">'
+    + '<div class="news-card-main">'
+    + newsBadge(item.section)
+    + '<div class="news-headline">' + item.title + '</div>'
+    + (item.summary ? '<div class="news-summary">' + item.summary + '</div>' : '')
+    + '<div class="news-meta">'
+    + (item.author ? '<span class="news-author">' + item.author + '</span><span style="color:#333">·</span>' : '')
+    + '<span class="news-reltime">' + (item.relTime||'') + '</span>'
+    + '</div></div></a>';
+}
+
+function newsHeroHTML(item) {
+  return '<a class="news-hero" href="' + item.link + '" target="_blank">'
+    + newsBadge(item.section)
+    + '<div class="news-headline">' + item.title + '</div>'
+    + (item.summary ? '<div class="news-summary">' + item.summary + '</div>' : '')
+    + '<div class="news-meta">'
+    + (item.author ? '<span class="news-author">' + item.author + '</span><span style="color:#333">·</span>' : '')
+    + '<span class="news-reltime">' + (item.relTime||'') + '</span>'
+    + '</div></a>';
+}
+
+function setNewsFilter(f, btn) {
+  newsFilter = f;
+  document.querySelectorAll('.nf-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  renderNewsFeed();
+}
+
+function renderNewsFeed() {
+  const items = newsFilter === 'ALL' ? noticiasData
+    : noticiasData.filter(n => (n.section||'').toUpperCase().includes(newsFilter.toUpperCase()));
+
+  // Heroes: top 2
+  document.getElementById('news-heroes').innerHTML = items.slice(0,2).map(newsHeroHTML).join('');
+
+  // Feed: rest
+  const rest = items.slice(2);
+  document.getElementById('news-feed').innerHTML = rest.length
+    ? rest.map(newsCardHTML).join('')
+    : '<div class="news-empty">Sin noticias en esta categoría</div>';
+}
+
+function renderNoticias(d) {
+  noticiasData = d.items || [];
+  document.getElementById('news-ts').textContent = 'Actualizado: ' + (d.timestamp||'');
+  document.getElementById('news-loading').style.display = 'none';
+  document.getElementById('news-content').style.display = '';
+
+  // Build filter buttons from sections
+  const secCounts = {};
+  noticiasData.forEach(n => {
+    const s = n.section || 'Otras';
+    secCounts[s] = (secCounts[s] || 0) + 1;
+  });
+  // Group into top categories
+  const cats = [
+    {label:'Mercados', key:'MERCADO'},
+    {label:'Empresas', key:'EMPRESA'},
+    {label:'Economía', key:'ECONOM'},
+    {label:'Energía',  key:'ENERG'},
+    {label:'Fiscal',   key:'FISCAL'},
+    {label:'FT',       key:'FINANCIAL'},
+    {label:'Ahorro',   key:'AHORRO'},
+  ];
+  const filtersEl = document.getElementById('news-filters');
+  filtersEl.innerHTML = '<button class="nf-btn on" onclick="setNewsFilter(\'ALL\',this)">Todas (' + noticiasData.length + ')</button>'
+    + cats.map(cat => {
+        const cnt = noticiasData.filter(n => (n.section||'').toUpperCase().includes(cat.key)).length;
+        if (!cnt) return '';
+        return '<button class="nf-btn" onclick="setNewsFilter(\'' + cat.key + '\',this)">' + cat.label + ' (' + cnt + ')</button>';
+      }).join('');
+
+  // Sidebar: latest 5
+  const latest = noticiasData.slice(0,6);
+  document.getElementById('news-latest').innerHTML = latest.map(n => {
+    const c = secColor(n.section);
+    return '<div class="nsb-item">'
+      + '<div class="nsb-dot" style="background:' + c.color + ';margin-top:4px"></div>'
+      + '<div><div class="nsb-txt">' + n.title.substring(0,70) + (n.title.length>70?'…':'') + '</div>'
+      + '<div class="nsb-meta">' + (n.section||'') + ' · ' + (n.relTime||'') + '</div></div></div>';
+  }).join('');
+
+  // Sidebar: sections breakdown
+  const topSecs = Object.entries(secCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  document.getElementById('news-sections').innerHTML = topSecs.map(([sec, cnt]) => {
+    const c = secColor(sec);
+    return '<div class="news-sec-stat">'
+      + '<span class="news-sec-name" style="color:' + c.color + '">' + sec + '</span>'
+      + '<span class="news-sec-count">' + cnt + '</span></div>';
+  }).join('');
+
+  renderNewsFeed();
+}
+
+async function loadNoticias() {
+  noticiasLoaded = true;
+  try {
+    const r = await fetch('/api/noticias');
+    const d = await r.json();
+    renderNoticias(d);
+  } catch(e) {
+    document.getElementById('news-loading').innerHTML = '<div class="err">⚠️ Error cargando noticias: ' + e.message + '</div>';
+  }
+}
+
 // ══ Stock Analyzer ════════════════════════════════════════════
 async function analyzeStock() {
   const raw = document.getElementById('an-ticker').value.trim();
@@ -2104,7 +2575,13 @@ renderMovers();
 renderContext();
 loadGlobal();
 loadWeekly();
-setInterval(() => { loadGlobal(); loadWeekly(); if (ibexLoaded) loadIbex(); }, 60000);
+let _refreshTick = 0;
+setInterval(() => {
+  loadGlobal(); loadWeekly();
+  if (ibexLoaded) loadIbex();
+  _refreshTick++;
+  if (noticiasLoaded && _refreshTick % 5 === 0) loadNoticias(); // refresh news every ~5 min
+}, 60000);
 </script>
 </body>
 </html>`
