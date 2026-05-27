@@ -1110,6 +1110,630 @@ func noticiasHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[noticias] %d items servidos\n", len(out))
 }
 
+// ─── Pietro Auto — Dynamic Weekly Recommendations ────────────
+// Step 1: detect theme from Expansión RSS news keyword analysis
+// Step 2: TV Scanner universe → Quality-at-a-Discount screen (score /100)
+// Step 3: deep thesis cards for top 3 (MOAT · DRAWDOWN · CATALYST · EXIT)
+// Cache refreshes every Monday 23:59 CET automatically.
+
+// pietroThemeDef — Sectors uses TradingView Scanner's actual sector strings.
+// TV Scanner sector values differ from GICS: "Electronic Technology", "Technology Services", etc.
+type pietroThemeDef struct {
+	Num        int
+	Label      string
+	Emoji      string
+	Sectors    []string // TV Scanner sector values (in_range filter)
+	Industries []string // keywords for local industry matching (lowercase contains)
+	Keywords   []string // Spanish/English news keywords for theme detection
+}
+
+var pietroThemes = []pietroThemeDef{
+	// TV Scanner sectors: "Electronic Technology" (semis, hardware), "Technology Services" (software, internet)
+	{1, "AI Infrastructure", "🤖",
+		[]string{"Electronic Technology", "Technology Services"},
+		[]string{}, // all industries in these sectors
+		[]string{"nvidia", "inteligencia artificial", " ia ", "gpu", "chip", "semiconductor", "data center", "cloud", "nube", "amd", "computación"}},
+	{2, "Semiconductors", "⚡",
+		[]string{"Electronic Technology"},
+		[]string{"semiconductor"},
+		[]string{"semiconductor", "tsmc", "obleas", "foundry", "nodo tecnológico", "litografía"}},
+	{3, "Cybersecurity", "🔐",
+		[]string{"Technology Services"},
+		[]string{"software", "internet", "services"},
+		[]string{"ciberseguridad", "hacker", "ciberataque", "ransomware", "brecha", "seguridad digital"}},
+	{4, "GLP-1 / Obesity", "💊",
+		[]string{"Health Technology"},
+		[]string{"pharma", "biotech", "drug", "health"},
+		[]string{"obesidad", "glp-1", "diabetes", "eli lilly", "novo nordisk", "ozempic", "wegovy", "farmacéutica"}},
+	{5, "Defense", "🛡️",
+		[]string{"Electronic Technology"},
+		[]string{"aerospace", "defense"},
+		[]string{"defensa", "armas", "armamento", "militar", "otan", "nato", "conflicto", "guerra", "misil"}},
+	{6, "Credit Networks", "💳",
+		[]string{"Finance"},
+		[]string{"credit", "financial", "payment"},
+		[]string{"visa", "mastercard", "pagos", "fintech", "pago digital", "transacción", "american express"}},
+	{7, "Software at Discount", "💻",
+		[]string{"Technology Services"},
+		[]string{}, // all software/tech services
+		[]string{"software", "saas", "microsoft", "salesforce", "sap", "oracle", "enterprise"}},
+	{8, "Re-shoring Industrials", "🏭",
+		[]string{"Producer Manufacturing", "Process Industries"},
+		[]string{},
+		[]string{"manufactura", "relocalización", "reshoring", "nearshoring", "infraestructura", "caterpillar"}},
+}
+
+type PietroAutoStock struct {
+	Ticker    string  `json:"ticker"`
+	Name      string  `json:"name"`
+	Price     float64 `json:"price"`
+	Change    float64 `json:"change"`
+	MktCapB   float64 `json:"mktCapB"`
+	Sector    string  `json:"sector"`
+	Industry  string  `json:"industry"`
+	Rec       float64 `json:"rec"`
+	ROE       float64 `json:"roe"`       // proxy for ROIC; -999 = N/A
+	FCF       float64 `json:"fcf"`       // raw value; >0 = pass
+	NdEB      float64 `json:"ndEB"`      // net debt / EBITDA; -999 = N/A
+	RevGrowth float64 `json:"revGrowth"` // % YoY; -999 = N/A
+	OffHigh   float64 `json:"offHigh"`   // % below 52w high
+	TrailPE   float64 `json:"trailPE"`
+	FwdPE     float64 `json:"fwdPE"`
+	Score     int     `json:"score"`
+	Tier      string  `json:"tier"`
+	PassROIC  bool    `json:"passROIC"`
+	PassFCF   bool    `json:"passFCF"`
+	PassDebt  bool    `json:"passDebt"`
+	PassRev   bool    `json:"passRev"`
+	PassDisc  bool    `json:"passDisc"`
+	PassPE    bool    `json:"passPE"`
+	Thesis    string  `json:"thesis"`
+}
+
+type PietroAutoResult struct {
+	ThemeNum   int               `json:"themeNum"`
+	ThemeLabel string            `json:"themeLabel"`
+	ThemeEmoji string            `json:"themeEmoji"`
+	WeekLabel  string            `json:"weekLabel"`
+	DateRange  string            `json:"dateRange"`
+	UpdatedAt  string            `json:"updatedAt"`
+	NextUpdate string            `json:"nextUpdate"`
+	Growth     []PietroAutoStock `json:"growth"`
+	Value      []PietroAutoStock `json:"value"`
+	Universe   []PietroAutoStock `json:"universe"`
+	Cards      []DeepCard        `json:"cards"` // reuse existing DeepCard/CardSection types
+	Source     string            `json:"source"`
+	Timestamp  string            `json:"timestamp"`
+}
+
+var (
+	pietroAutoMu     sync.Mutex
+	pietroAutoCached *PietroAutoResult
+	pietroAutoAt     time.Time
+)
+
+func pietroNeedsRefresh() bool {
+	if pietroAutoCached == nil {
+		return true
+	}
+	loc, err := time.LoadLocation("Europe/Madrid")
+	if err != nil {
+		loc = time.UTC
+	}
+	now := time.Now().In(loc)
+	wd := int(now.Weekday()) // 0=Sun 1=Mon…
+	daysToLastMon := wd - 1
+	if daysToLastMon < 0 {
+		daysToLastMon = 6
+	}
+	lastMon := now.AddDate(0, 0, -daysToLastMon)
+	cutoff := time.Date(lastMon.Year(), lastMon.Month(), lastMon.Day(), 23, 59, 0, 0, loc)
+	if cutoff.After(now) {
+		cutoff = cutoff.AddDate(0, 0, -7)
+	}
+	return pietroAutoAt.Before(cutoff)
+}
+
+func detectPietroTheme() pietroThemeDef {
+	seen := map[string]bool{}
+	var allText string
+	for _, feed := range expansionRSSFeeds {
+		items, err := fetchExpansionFeed(feed.url)
+		if err != nil {
+			continue
+		}
+		for _, it := range items {
+			key := it.GUID
+			if key == "" {
+				key = it.Link
+			}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			allText += strings.ToLower(it.Title) + " " + strings.ToLower(stripHTML(it.Desc)) + " "
+		}
+	}
+	if allText == "" {
+		return pietroThemes[0]
+	}
+	scores := make([]int, len(pietroThemes))
+	for i, th := range pietroThemes {
+		for _, kw := range th.Keywords {
+			scores[i] += strings.Count(allText, kw)
+		}
+	}
+	bestScore, bestIdx := 0, 0
+	for i, s := range scores {
+		if s > bestScore {
+			bestScore = s
+			bestIdx = i
+		}
+	}
+	if bestScore == 0 {
+		return pietroThemes[0]
+	}
+	return pietroThemes[bestIdx]
+}
+
+func matchesThemeIndustry(industry string, theme pietroThemeDef) bool {
+	if len(theme.Industries) == 0 {
+		return true
+	}
+	ind := strings.ToLower(industry)
+	for _, pat := range theme.Industries {
+		if strings.Contains(ind, strings.ToLower(pat)) {
+			return true
+		}
+	}
+	return false
+}
+
+var pietroScanCols = []string{
+	"description",              // 0  company name
+	"close",                    // 1  price
+	"change",                   // 2  % change
+	"market_cap_basic",         // 3  market cap
+	"sector",                   // 4  sector label
+	"industry",                 // 5  industry label
+	"return_on_equity",         // 6  ROE (proxy for ROIC)
+	"free_cash_flow",           // 7  FCF (sign matters)
+	"net_debt",                 // 8  net debt
+	"ebitda",                   // 9  EBITDA TTM
+	"earnings_per_share_diluted_yoy_growth_ttm", // 10 EPS growth YoY (proxy for rev growth)
+	"price_52_week_high",       // 11 52-week high
+	"price_earnings_ttm",       // 12 trailing P/E
+	"Recommend.All",            // 13 TV signal
+}
+
+func tvScanPietroUniverse(theme pietroThemeDef) []PietroAutoStock {
+	filters := []map[string]interface{}{
+		{"left": "market_cap_basic", "operation": "greater", "right": 10e9},
+		{"left": "exchange", "operation": "in_range", "right": []string{"NASDAQ", "NYSE"}},
+		{"left": "type", "operation": "equal", "right": "stock"},
+		{"left": "close", "operation": "greater", "right": 1},
+	}
+	if len(theme.Sectors) > 0 {
+		filters = append(filters, map[string]interface{}{
+			"left": "sector", "operation": "in_range", "right": theme.Sectors,
+		})
+	}
+	reqBody := map[string]interface{}{
+		"filter":  filters,
+		"columns": pietroScanCols,
+		"sort":    map[string]interface{}{"sortBy": "market_cap_basic", "sortOrder": "desc"},
+		"range":   []int{0, 60},
+	}
+	body, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequest("POST", "https://scanner.tradingview.com/america/scan", bytes.NewReader(body))
+	tvHeaders(req)
+	resp, err := tvCl.Do(req)
+	if err != nil {
+		fmt.Printf("[pietro] scan error: %v\n", err)
+		return nil
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Data []struct {
+			S string        `json:"s"`
+			D []interface{} `json:"d"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		fmt.Printf("[pietro] decode: %v\n", err)
+		return nil
+	}
+
+	var stocks []PietroAutoStock
+	for _, item := range result.Data {
+		d := item.D
+		if len(d) < 14 {
+			continue
+		}
+		price := toF(d[1])
+		if price <= 0 {
+			continue
+		}
+		industry := toS(d[5])
+		if !matchesThemeIndustry(industry, theme) {
+			continue
+		}
+		sym := item.S
+		if idx := strings.Index(sym, ":"); idx >= 0 {
+			sym = sym[idx+1:]
+		}
+
+		roe := toF(d[6])
+		if roe == 0 {
+			roe = -999
+		}
+		fcf := toF(d[7])
+		netDebt := toF(d[8])
+		ebitda := toF(d[9])
+		revGrowth := toF(d[10])
+		if revGrowth == 0 {
+			revGrowth = -999
+		}
+		h52 := toF(d[11])
+		trailPE := toF(d[12])
+
+		var ndEB float64 = -999
+		if ebitda != 0 {
+			ndEB = netDebt / ebitda
+		}
+		var offHigh float64
+		if h52 > 0 {
+			offHigh = (h52 - price) / h52 * 100
+		}
+
+		// Forward P/E gate: not available from TV Scanner filter scan
+		// Kept as false; can be enabled if a valid fwd-EPS column is found
+		passPE := false
+
+		passROIC := roe > -900 && roe >= 15
+		passFCF := fcf > 0
+		passDebt := ndEB > -900 && ndEB < 2
+		passRev := revGrowth > -900 && revGrowth > 0
+		passDisc := offHigh >= 15
+
+		score := 0
+		if passROIC {
+			score += 20
+		}
+		if passFCF {
+			score += 20
+		}
+		if passDebt {
+			score += 20
+		}
+		if passRev {
+			score += 20
+		}
+		if passDisc {
+			score += 10
+		}
+
+		st := PietroAutoStock{
+			Ticker: sym, Name: toS(d[0]),
+			Price: price, Change: toF(d[2]),
+			MktCapB: toF(d[3]) / 1e9,
+			Sector: toS(d[4]), Industry: industry, Rec: toF(d[13]),
+			ROE: roe, FCF: fcf, NdEB: ndEB, RevGrowth: revGrowth,
+			OffHigh: offHigh, TrailPE: trailPE,
+			Score: score, Tier: tierLabel(score),
+			PassROIC: passROIC, PassFCF: passFCF,
+			PassDebt: passDebt, PassRev: passRev,
+			PassDisc: passDisc, PassPE: passPE,
+		}
+		st.Thesis = autoThesisPietro(st)
+		stocks = append(stocks, st)
+		if len(stocks) >= 25 {
+			break
+		}
+	}
+	fmt.Printf("[pietro] theme=%s universe=%d stocks\n", theme.Label, len(stocks))
+	return stocks
+}
+
+func industryRolePietro(industry, sector string) string {
+	ind := strings.ToLower(industry)
+	switch {
+	case strings.Contains(ind, "semiconductor") && !strings.Contains(ind, "equipment"):
+		return "Fab. semiconductores"
+	case strings.Contains(ind, "semiconductor equipment"):
+		return "Equipos fab. chips"
+	case strings.Contains(ind, "software"):
+		return "Software empresarial"
+	case strings.Contains(ind, "information technology"):
+		return "Servicios IT"
+	case strings.Contains(ind, "communication equipment"):
+		return "Redes y telecomunicación"
+	case strings.Contains(ind, "computer hardware"):
+		return "Hardware informático"
+	case strings.Contains(ind, "aerospace") || strings.Contains(ind, "defense"):
+		return "Contratista de defensa"
+	case strings.Contains(ind, "biotechnology"):
+		return "Biotecnología"
+	case strings.Contains(ind, "drug"):
+		return "Lab. farmacéutico"
+	case strings.Contains(ind, "credit"):
+		return "Red de pagos"
+	case strings.Contains(ind, "industrial machinery"):
+		return "Maquinaria industrial"
+	case strings.Contains(ind, "electrical equipment"):
+		return "Equipos eléctricos"
+	default:
+		if sector != "" {
+			return sector
+		}
+		return industry
+	}
+}
+
+func autoThesisPietro(s PietroAutoStock) string {
+	role := industryRolePietro(s.Industry, s.Sector)
+	var parts []string
+	if s.PassROIC && s.ROE > 0 {
+		parts = append(parts, fmt.Sprintf("ROE %.0f%%", s.ROE))
+	}
+	if s.PassFCF {
+		parts = append(parts, "FCF+")
+	}
+	if s.PassDebt && s.NdEB > -900 {
+		if s.NdEB < 0 {
+			parts = append(parts, "caja neta")
+		} else {
+			parts = append(parts, fmt.Sprintf("ND/EBITDA %.1fx", s.NdEB))
+		}
+	}
+	if s.PassRev && s.RevGrowth > 0 {
+		parts = append(parts, fmt.Sprintf("rev +%.0f%%", s.RevGrowth))
+	}
+	if s.PassDisc {
+		parts = append(parts, fmt.Sprintf("-%.0f%% vs max52s", s.OffHigh))
+	}
+	if len(parts) == 0 {
+		return role
+	}
+	return role + " · " + strings.Join(parts, ", ")
+}
+
+func buildPietroDeepCard(s PietroAutoStock, themeLabel string) DeepCard {
+	dateStr := time.Now().Format("02 Jan 2006")
+	src := "TradingView Scanner · " + dateStr
+
+	// THE MOAT
+	moatTxt := industryRolePietro(s.Industry, s.Sector) + "."
+	if s.PassROIC && s.ROE >= 20 {
+		moatTxt += fmt.Sprintf(" ROE del %.0f%% indica ventaja competitiva estructural — rendimientos muy superiores al coste de capital.", s.ROE)
+	} else if s.PassROIC {
+		moatTxt += fmt.Sprintf(" ROE del %.0f%% supera el umbral de calidad (15%%) — poder de fijación de precios confirmado.", s.ROE)
+	}
+	if s.PassFCF && s.FCF > 0 {
+		moatTxt += " Generación de caja libre positiva confirma pricing power sostenido."
+	}
+	if s.PassDebt && s.NdEB < 0 {
+		moatTxt += " Balance en posición de caja neta — máxima flexibilidad para M&A o recompras."
+	} else if s.PassDebt && s.NdEB > -900 {
+		moatTxt += fmt.Sprintf(" Deuda/EBITDA %.1fx — nivel conservador, sin riesgo financiero a corto plazo.", s.NdEB)
+	}
+
+	// THE DRAWDOWN
+	var drawTxt string
+	if s.OffHigh < 3 {
+		drawTxt = fmt.Sprintf("%s cotiza cerca de máximos de 52 semanas (%.1f%% desde max). Sin drawdown significativo — valoración exigente, usar stops ajustados.", s.Ticker, s.OffHigh)
+	} else {
+		high52 := s.Price * 100 / (100 - s.OffHigh)
+		drawTxt = fmt.Sprintf("%s acumula una corrección del %.0f%% desde sus máximos anuales ($%.2f → $%.2f actual).", s.Ticker, s.OffHigh, high52, s.Price)
+		if !s.PassRev && s.RevGrowth > -900 && s.RevGrowth < 0 {
+			drawTxt += fmt.Sprintf(" Los ingresos mostraron contracción (%.0f%% a/a), generando revisión a la baja del consenso.", s.RevGrowth)
+		}
+		if s.TrailPE > 30 {
+			drawTxt += fmt.Sprintf(" El múltiplo P/E de %.0fx sigue elevado para el sector, lo que mantiene el sesgo cauteloso.", s.TrailPE)
+		}
+		if !s.PassROIC && s.ROE > -900 {
+			drawTxt += " La compresión de márgenes situó el ROE por debajo del umbral de calidad del 15%%."
+		}
+	}
+
+	// THE CATALYST
+	catTxt := ""
+	if s.PassRev && s.RevGrowth > 10 {
+		catTxt += fmt.Sprintf("Crecimiento de ingresos del %.0f%% a/a — si se mantiene, el consenso podría revisar al alza el BPA en los próximos 2 trimestres. ", s.RevGrowth)
+	}
+	if s.PassPE && s.FwdPE > 0 && s.TrailPE > 0 {
+		catTxt += fmt.Sprintf("P/E forward (%.0fx) < P/E TTM (%.0fx) — el mercado anticipa aceleración de beneficios que puede comprimir el múltiplo. ", s.FwdPE, s.TrailPE)
+	}
+	if s.PassDisc {
+		catTxt += fmt.Sprintf("Con %.0f%% de descuento sobre máximos, cualquier revisión positiva de guidance o sorpresa macro favorable puede desencadenar un fuerte rebote técnico. ", s.OffHigh)
+	}
+	catTxt += fmt.Sprintf("Como componente clave del sector '%s', %s está posicionado en la tesis temática detectada esta semana via análisis de noticias financieras.", themeLabel, s.Ticker)
+
+	// THE EXIT
+	exitTxt := ""
+	if s.PassROIC && s.ROE > -900 {
+		exitTxt += fmt.Sprintf("FUNDAMENTAL: Si el ROE cae por debajo del 15%% en dos trimestres consecutivos (actual: %.0f%%), la tesis de calidad queda invalidada — reducir posición. ", s.ROE)
+	} else {
+		exitTxt += "FUNDAMENTAL: Si los márgenes no mejoran en el próximo trimestre de resultados, la tesis de recuperación falla — salir de la posición. "
+	}
+	if s.NdEB > -900 && s.NdEB > 0 {
+		exitTxt += fmt.Sprintf("Si Deuda/EBITDA supera 3x en dos reportes seguidos (actual: %.1fx), la carga financiera amenaza el FCF libre. ", s.NdEB)
+	}
+	stopPrice := s.Price * 0.85
+	exitTxt += fmt.Sprintf("TECNICO: Cierre semanal por debajo de $%.2f (−15%% desde $%.2f actual) activa stop de protección de capital.", stopPrice, s.Price)
+
+	return DeepCard{
+		Symbol: s.Ticker, Name: s.Name, Score: s.Score, Tier: s.Tier,
+		Moat: CardSection{Content: moatTxt, Source: src},
+		Draw: CardSection{Content: drawTxt, Source: src},
+		Cat:  CardSection{Content: catTxt, Source: src},
+		Exit: CardSection{Content: exitTxt, Source: src},
+	}
+}
+
+func monthES(m time.Month) string {
+	switch m {
+	case time.January:
+		return "Ene"
+	case time.February:
+		return "Feb"
+	case time.March:
+		return "Mar"
+	case time.April:
+		return "Abr"
+	case time.May:
+		return "May"
+	case time.June:
+		return "Jun"
+	case time.July:
+		return "Jul"
+	case time.August:
+		return "Ago"
+	case time.September:
+		return "Sep"
+	case time.October:
+		return "Oct"
+	case time.November:
+		return "Nov"
+	case time.December:
+		return "Dic"
+	}
+	return m.String()
+}
+
+func buildPietroData() PietroAutoResult {
+	theme := detectPietroTheme()
+	universe := tvScanPietroUniverse(theme)
+
+	// Deduplicate: same company listed as multiple share classes (e.g. GOOGL + GOOG, META ClassA + B)
+	// Keep the one with the larger market cap.
+	normaliseCoName := func(name string) string {
+		s := strings.ToLower(strings.TrimSpace(name))
+		// Strip share-class suffixes: "class a", "class b", "class c", etc.
+		for _, sfx := range []string{" class a", " class b", " class c", " class x", " class y", " class i", " class ii"} {
+			s = strings.TrimSuffix(s, sfx)
+		}
+		// Strip common corporate suffixes
+		for _, sfx := range []string{" inc.", " inc", " corp.", " corp", " ltd.", " ltd", " llc", " plc", " co.", " co"} {
+			s = strings.TrimSuffix(s, sfx)
+		}
+		return strings.TrimSpace(s)
+	}
+	seenCoName := map[string]bool{}
+	var deduped []PietroAutoStock
+	// Sort by mktcap desc first so we keep the primary/larger share class
+	sort.Slice(universe, func(i, j int) bool { return universe[i].MktCapB > universe[j].MktCapB })
+	for _, st := range universe {
+		key := normaliseCoName(st.Name)
+		if key == "" {
+			key = strings.ToLower(st.Ticker)
+		}
+		if !seenCoName[key] {
+			seenCoName[key] = true
+			deduped = append(deduped, st)
+		}
+	}
+	universe = deduped
+
+	sort.Slice(universe, func(i, j int) bool {
+		if universe[i].Score != universe[j].Score {
+			return universe[i].Score > universe[j].Score
+		}
+		return universe[i].MktCapB > universe[j].MktCapB
+	})
+
+	// Growth: top 5 by Quality-at-a-Discount score
+	var growth []PietroAutoStock
+	for _, s := range universe {
+		if len(growth) >= 5 {
+			break
+		}
+		growth = append(growth, s)
+	}
+
+	// Value: next 5 (not already in Growth)
+	growthSet := map[string]bool{}
+	for _, g := range growth {
+		growthSet[g.Ticker] = true
+	}
+	var value []PietroAutoStock
+	for _, s := range universe {
+		if len(value) >= 5 {
+			break
+		}
+		if !growthSet[s.Ticker] {
+			value = append(value, s)
+		}
+	}
+
+	// Deep thesis cards for top 3
+	var cards []DeepCard
+	for i, s := range universe {
+		if i >= 3 {
+			break
+		}
+		cards = append(cards, buildPietroDeepCard(s, theme.Label))
+	}
+
+	// Date labels
+	loc, err := time.LoadLocation("Europe/Madrid")
+	if err != nil {
+		loc = time.UTC
+	}
+	now := time.Now().In(loc)
+	wd := int(now.Weekday())
+	daysToMon := wd - 1
+	if daysToMon < 0 {
+		daysToMon = 6
+	}
+	monday := now.AddDate(0, 0, -daysToMon)
+	sunday := monday.AddDate(0, 0, 6)
+	dateRange := fmt.Sprintf("%d %s – %d %s %d",
+		monday.Day(), monthES(monday.Month()),
+		sunday.Day(), monthES(sunday.Month()), now.Year())
+	nextMon := monday.AddDate(0, 0, 7)
+	updatedAt := fmt.Sprintf("Lun %d %s %d · 23:59 CET", monday.Day(), monthES(monday.Month()), monday.Year())
+	nextUpdate := fmt.Sprintf("Lun %d %s %d · 23:59 CET", nextMon.Day(), monthES(nextMon.Month()), nextMon.Year())
+
+	return PietroAutoResult{
+		ThemeNum: theme.Num, ThemeLabel: theme.Label, ThemeEmoji: theme.Emoji,
+		WeekLabel: "Semana " + dateRange, DateRange: dateRange,
+		UpdatedAt: updatedAt, NextUpdate: nextUpdate,
+		Growth: growth, Value: value, Universe: universe, Cards: cards,
+		Source:    "TradingView Scanner · Análisis RSS Expansión",
+		Timestamp: time.Now().UTC().Format("Mon 02 Jan 2006 — 15:04:05 UTC"),
+	}
+}
+
+func pietroAutoHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	pietroAutoMu.Lock()
+	needsRefresh := pietroNeedsRefresh()
+	pietroAutoMu.Unlock()
+
+	if needsRefresh {
+		data := buildPietroData()
+		pietroAutoMu.Lock()
+		pietroAutoCached = &data
+		pietroAutoAt = time.Now()
+		pietroAutoMu.Unlock()
+	}
+
+	pietroAutoMu.Lock()
+	out := pietroAutoCached
+	pietroAutoMu.Unlock()
+
+	if out == nil {
+		w.WriteHeader(503)
+		fmt.Fprint(w, `{"error":"Pietro data building — retry in 5s"}`)
+		return
+	}
+	json.NewEncoder(w).Encode(out)
+	fmt.Printf("[pietro] served theme=%s universe=%d cards=%d\n", out.ThemeLabel, len(out.Universe), len(out.Cards))
+}
+
 func apiHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
@@ -1163,6 +1787,7 @@ func main() {
 	http.HandleFunc("/api/weekly", weeklyHandler)
 	http.HandleFunc("/api/analyze", analyzeHandler)
 	http.HandleFunc("/api/noticias", noticiasHandler)
+	http.HandleFunc("/api/pietro", pietroAutoHandler)
 	u := "http://localhost:" + port
 	fmt.Println("╔══════════════════════════════════════╗")
 	fmt.Println("║  Pietro Quantum Finance — PQF        ║")
@@ -1481,6 +2106,15 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
 .news-sec-count{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted)}
 .news-empty{text-align:center;padding:40px;color:var(--muted);font-size:12px}
 
+/* ── PIETRO AUTO TAB ── */
+.p-auto-wrap{padding:16px 20px}
+.p-auto-top{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.p-auto-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.p-auto-title{font-size:15px;font-weight:700;color:var(--pqf2);letter-spacing:.3px}
+.p-theme-badge{background:var(--pqf3);border:1px solid var(--pqf);border-radius:14px;font-size:12px;font-weight:700;padding:4px 14px;color:var(--pqf2)}
+.p-auto-meta{font-size:10px;color:var(--muted);display:flex;flex-direction:column;gap:3px;align-items:flex-end;text-align:right}
+.p-source-note{font-size:9px;color:#444;font-family:'JetBrains Mono',monospace}
+
 /* ── STOCK ANALYZER ── */
 .an-bar{display:flex;align-items:center;gap:4px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:2px 2px 2px 8px;transition:border-color .2s}
 .an-bar:focus-within{border-color:var(--pqf)}
@@ -1555,6 +2189,7 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
     <button class="tab-btn active" onclick="setTab('global')" id="tab-btn-global">🌍 Global</button>
     <button class="tab-btn" onclick="setTab('ibex')" id="tab-btn-ibex">📊 IBEX 35</button>
     <button class="tab-btn" onclick="setTab('noticias')" id="tab-btn-noticias">📰 Expansión</button>
+    <button class="tab-btn" onclick="setTab('pietro')" id="tab-btn-pietro">⭐ Pietro</button>
   </div>
 
   <div class="hdr-right">
@@ -1723,6 +2358,60 @@ footer{background:var(--bg2);border-top:1px solid var(--border);padding:8px 20px
   </div>
 </div>
 
+<!-- ══ PIETRO AUTO TAB ══ -->
+<div class="tab-content" id="tab-pietro">
+  <div class="p-auto-wrap">
+    <div class="p-auto-top">
+      <div class="p-auto-header">
+        <div class="p-auto-title">⭐ Recomendado por Pietro · Selección Semanal Dinámica</div>
+        <span class="p-theme-badge" id="p-theme-badge">🤖 Detectando tema…</span>
+        <span class="date-badge" id="p-dates">—</span>
+      </div>
+      <div class="p-auto-meta">
+        <span id="p-update">📅 Actualización: lunes 23:59 CET</span>
+        <span class="p-source-note" id="p-source">Fuente: TradingView Scanner · RSS Expansión</span>
+      </div>
+    </div>
+    <div id="p-loading" class="loading"><div class="spinner"></div>Analizando noticias y ejecutando Quality at a Discount screen…</div>
+    <div id="p-content" style="display:none">
+      <!-- Growth + Value columns -->
+      <div class="pietro-cols">
+        <div>
+          <div class="col-hdr growth">📈 GROWTH — Quality at a Discount · Top 5 por Score</div>
+          <div class="wk-cards" id="p-growth-cards"></div>
+        </div>
+        <div>
+          <div class="col-hdr value">💎 VALUE — Siguientes posiciones por Score · Top 5</div>
+          <div class="wk-cards" id="p-value-cards"></div>
+        </div>
+      </div>
+      <!-- Full universe quality table -->
+      <div style="margin-top:16px">
+        <div class="sec-title" style="margin-bottom:4px">📊 Universo — Quality at a Discount Screen · <span id="p-universe-count">—</span> stocks · Tema: <span id="p-theme-label">—</span></div>
+        <div class="qt-note" id="p-qt-note">Tema detectado via análisis RSS Expansión · Score /100 · ROE%= proxy ROIC · %Máx52s = precio live</div>
+        <div style="overflow-x:auto;margin-top:6px">
+          <table class="qtable" id="p-qtable">
+            <thead><tr>
+              <th>Rk</th><th>Ticker</th>
+              <th class="r">ROE%</th><th class="r">FCF</th>
+              <th class="r">ND/EBITDA</th><th class="r">RevGr%</th>
+              <th class="r">%Mxs52</th><th class="r">Score</th>
+              <th>Tier</th><th>Thesis</th>
+            </tr></thead>
+            <tbody id="p-qtbody"><tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <!-- Deep Thesis Cards — Top 3 -->
+      <div class="deep-section-wrap">
+        <div class="deep-section-title" id="p-deep-title">📋 Deep Thesis — Top 3 por Conviction Score</div>
+        <div class="deep-grid" id="p-deep-cards"></div>
+      </div>
+      <div class="weekly-foot" id="p-ts">—</div>
+    </div>
+  </div>
+</div>
+
 <footer>
   <span data-i18n="footerLeft">Datos: TradingView Scanner · Auto-refresh 60s</span>
   <span><span class="footer-brand">Pietro Quantum Finance — PQF</span> &nbsp;·&nbsp; <span data-i18n="footerRight">Solo informativo</span></span>
@@ -1818,6 +2507,7 @@ function setTab(tab) {
   document.getElementById('tab-btn-' + tab).classList.add('active');
   if (tab === 'ibex') loadIbex();
   if (tab === 'noticias') loadNoticias();
+  if (tab === 'pietro') loadPietro();
 }
 
 // ══ Formatters ════════════════════════════════════════════════
@@ -2569,6 +3259,145 @@ function renderAnalysis(d) {
     + '</div>';
 }
 
+// ══ Pietro Auto Tab ═══════════════════════════════════════════
+let pietroLoaded = false;
+
+async function loadPietro() {
+  const loadEl = document.getElementById('p-loading');
+  const contEl = document.getElementById('p-content');
+  if (loadEl) { loadEl.style.display = ''; loadEl.innerHTML = '<div class="spinner"></div>Analizando noticias y ejecutando screen…'; }
+  if (contEl) contEl.style.display = 'none';
+  try {
+    const r = await fetch('/api/pietro');
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    renderPietroAuto(d);
+    pietroLoaded = true;
+  } catch(e) {
+    if (loadEl) loadEl.innerHTML = '<div class="err">⚠️ ' + e.message + ' — El server puede estar generando los datos (primera carga ~10s), recarga en breve.</div>';
+  }
+}
+
+function renderPietroAuto(d) {
+  const loadEl = document.getElementById('p-loading');
+  const contEl = document.getElementById('p-content');
+  // Header meta
+  document.getElementById('p-theme-badge').textContent = d.themeEmoji + ' ' + d.themeLabel;
+  document.getElementById('p-dates').textContent = d.weekLabel;
+  document.getElementById('p-update').textContent = '📅 Actualizado: ' + d.updatedAt + ' · Próximo: ' + d.nextUpdate;
+  document.getElementById('p-source').textContent = 'Fuente: ' + (d.source||'TradingView Scanner');
+  document.getElementById('p-universe-count').textContent = (d.universe||[]).length;
+  document.getElementById('p-theme-label').textContent = d.themeLabel;
+  document.getElementById('p-qt-note').textContent =
+    'Tema "' + d.themeLabel + '" — detectado via RSS Expansion · Score/100 · ROE%=proxy ROIC · ' + d.updatedAt;
+  document.getElementById('p-ts').textContent =
+    '🟢 Live · TradingView Scanner · ' + d.timestamp + ' · Tema: ' + d.themeLabel;
+  const topTkrs = (d.universe||[]).slice(0,3).map(s => s.ticker).join(' · ');
+  if (topTkrs) document.getElementById('p-deep-title').textContent = '📋 Deep Thesis — Top 3 · ' + topTkrs;
+  // Render sections
+  renderPietroCards('p-growth-cards', d.growth || [], 'growth');
+  renderPietroCards('p-value-cards',  d.value  || [], 'value');
+  renderPietroTable(d.universe || []);
+  renderPietroDeepCards(d.cards || []);
+  // Show
+  if (loadEl) loadEl.style.display = 'none';
+  if (contEl) contEl.style.display = '';
+}
+
+function renderPietroCards(id, stocks, type) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!stocks || !stocks.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px">Sin datos para este tema — el screen no encontro stocks con Score suficiente.</div>';
+    return;
+  }
+  el.innerHTML = stocks.map(s => {
+    const pct = s.change || 0;
+    const c   = pct >= 0 ? 'up' : 'dn';
+    const sgn = pct > 0 ? '+' : '';
+    const prStr = s.price ? '$' + fmt(s.price) : '—';
+    const chStr = s.price ? ' <span class="' + c + '">' + arrow(pct) + sgn + fmt(pct,2) + '%</span>' : '';
+    const sig   = s.rec ? recToSig(s.rec) : '';
+    const sigCl = sig ? sigClass(sig) : '';
+    const recH  = sig ? ' <span class="sig-badge ' + sigCl + '" style="font-size:9px;padding:1px 4px">' + sig + '</span>' : '';
+    const scCol = s.score>=80?'#4ade80':s.score>=65?'#fbbf24':s.score>=50?'#94a3b8':'#f87171';
+    return '<div class="wk-card wk-' + type + '">'
+      + '<div class="wk-top">'
+      + '<div><span class="wk-sym">' + s.ticker + '</span>' + recH + '</div>'
+      + '<div class="wk-price-row">' + prStr + chStr
+      + ' <span style="font-size:9px;font-weight:700;color:' + scCol + ';margin-left:4px">' + s.score + '/100</span></div>'
+      + '</div>'
+      + '<div class="wk-name">' + (s.name||'').substring(0,32) + '</div>'
+      + '<div class="wk-why">💡 ' + (s.thesis||s.industry||'') + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function renderPietroTable(rows) {
+  const tbody = document.getElementById('p-qtbody');
+  if (!tbody || !rows.length) return;
+  const fQ = (v, good) => {
+    if (v <= -900) return '<span class="q-na">N/D</span>';
+    return '<span class="' + (good(v) ? 'q-ok' : 'q-bad') + '">' + fmt(v,1) + '</span>';
+  };
+  const fND = v => {
+    if (v <= -900) return '<span class="q-na">N/D</span>';
+    if (v < 0) return '<span class="q-ok">caja</span>';
+    return '<span class="' + (v<2?'q-ok':'q-bad') + '">' + fmt(v,1) + 'x</span>';
+  };
+  tbody.innerHTML = rows.map((s,i) => {
+    const tr   = 'q-' + (s.tier||'watch').toLowerCase();
+    const offH = s.offHigh>0
+      ? '<span class="' + (s.offHigh>=15?'q-ok':'q-bad') + '">-' + fmt(s.offHigh,1) + '%</span>'
+      : '<span class="q-na">—</span>';
+    const peFl = s.passPE ? '<span class="q-ok">✓</span>' : '<span class="q-bad">✗</span>';
+    const ps   = s.price ? ' <span style="font-size:9px;color:#888">$' + fmt(s.price) + '</span>' : '';
+    const scCol = s.score>=80?'#4ade80':s.score>=65?'#fbbf24':s.score>=50?'#94a3b8':'#f87171';
+    const fcfH  = s.fcf>0 ? '<span class="q-ok">+</span>' : s.fcf<0 ? '<span class="q-bad">−</span>' : '<span class="q-na">—</span>';
+    return '<tr class="' + tr + '">'
+      + '<td style="color:#555;font-size:9px">' + (i+1) + '</td>'
+      + '<td><div class="q-sym">' + s.ticker + ps + '</div><div class="q-name">' + (s.name||'').substring(0,22) + '</div></td>'
+      + '<td class="r">' + fQ(s.roe, v=>v>=15) + '</td>'
+      + '<td class="r">' + fcfH + '</td>'
+      + '<td class="r">' + fND(s.ndEB) + '</td>'
+      + '<td class="r">' + fQ(s.revGrowth, v=>v>0) + ' ' + peFl + '</td>'
+      + '<td class="r">' + offH + '</td>'
+      + '<td class="r q-score" style="color:' + scCol + '">' + s.score + '</td>'
+      + '<td><span class="q-tier ' + (s.tier||'AVOID') + '">' + (s.tier||'?') + '</span></td>'
+      + '<td class="q-thesis">' + (s.thesis||'').substring(0,80) + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+function renderPietroDeepCards(cards) {
+  const el = document.getElementById('p-deep-cards');
+  if (!el) return;
+  if (!cards || !cards.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-size:11px">Sin datos de thesis — se necesitan al menos 3 stocks en el universo.</div>';
+    return;
+  }
+  function blk(icon, lbl, cls, s) {
+    if (!s) return '';
+    return '<div class="deep-block">'
+      + '<div class="deep-block-lbl ' + cls + '">' + icon + ' ' + lbl + '</div>'
+      + '<div class="deep-block-body">' + s.content + '</div>'
+      + (s.source ? '<div class="deep-src">📎 ' + s.source + '</div>' : '')
+      + '</div>';
+  }
+  el.innerHTML = cards.map(c =>
+    '<div class="deep-card">'
+    + '<div class="deep-card-hdr">'
+    + '<div><div class="deep-sym-lg">' + c.symbol + '</div><div class="deep-name-sm">' + (c.name||'') + '</div></div>'
+    + '<div class="deep-score-badge">' + c.score + '/100 &nbsp;<span class="q-tier ' + c.tier + '" style="font-size:8px">' + c.tier + '</span></div>'
+    + '</div>'
+    + blk('🏰','EL MOAT','lbl-moat', c.moat)
+    + blk('📉','EL DRAWDOWN','lbl-draw', c.draw)
+    + blk('⚡','EL CATALIZADOR','lbl-cat', c.cat)
+    + blk('🚪','LA SALIDA','lbl-exit', c.exit)
+    + '</div>'
+  ).join('');
+}
+
 // ══ Init ═════════════════════════════════════════════════════
 setLang(currentLang);
 renderMovers();
@@ -2581,6 +3410,7 @@ setInterval(() => {
   if (ibexLoaded) loadIbex();
   _refreshTick++;
   if (noticiasLoaded && _refreshTick % 5 === 0) loadNoticias(); // refresh news every ~5 min
+  if (pietroLoaded && _refreshTick % 60 === 0) loadPietro();   // refresh Pietro every ~60 min
 }, 60000);
 </script>
 </body>
