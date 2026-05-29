@@ -14,7 +14,11 @@ export async function GET(req: Request) {
     clientId: searchParams.get('clientId') ?? undefined,
     activityId: searchParams.get('activityId') ?? undefined,
     spaceId: searchParams.get('spaceId') ?? undefined,
-    status: (searchParams.get('status') as any) ?? undefined,
+    status: (() => {
+    const s = searchParams.get('status')
+    const valid = ['available', 'booked', 'cancelled', 'completed', 'blocked'] as const
+    return valid.includes(s as any) ? (s as typeof valid[number]) : undefined
+  })(),
     startDate: searchParams.get('startDate') ?? undefined,
     endDate: searchParams.get('endDate') ?? undefined,
   }
@@ -93,7 +97,6 @@ export async function POST(req: Request) {
       where: {
         spaceId,
         status: { notIn: ['cancelled', 'blocked'] },
-        NOT: { id: undefined },
         OR: [
           { startDatetime: { lt: end }, endDatetime: { gt: start } },
         ],

@@ -81,6 +81,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const target = await prisma.user.findUnique({ where: { id } })
+  if (!target) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+
   await prisma.user.delete({ where: { id } })
   return NextResponse.json({ ok: true })
 }

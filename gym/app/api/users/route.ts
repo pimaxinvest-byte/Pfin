@@ -14,8 +14,22 @@ export async function GET(req: Request) {
   if (role) where.role = role
   // Teachers can only see clients
   if (session.user.role === 'teacher') where.role = 'client'
-  // Clients cannot list users
-  if (session.user.role === 'client') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // Clients can only fetch teachers (limited public fields)
+  if (session.user.role === 'client') {
+    if (searchParams.get('role') === 'teacher') {
+      const teachers = await prisma.user.findMany({
+        where: { role: 'teacher' },
+        select: {
+          id: true,
+          name: true,
+          teacherProfile: { select: { color: true } },
+        },
+        orderBy: { name: 'asc' },
+      })
+      return NextResponse.json(teachers)
+    }
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
   const users = await prisma.user.findMany({
     where,

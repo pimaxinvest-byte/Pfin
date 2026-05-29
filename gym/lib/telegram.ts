@@ -212,13 +212,24 @@ export async function notifyRecurringCreated(
     `✅ <b>Total creadas:</b> ${count} reservas`,
   ].join('\n')
 
-  const promises: Promise<boolean>[] = []
+  const bookingId = `recurring-${Date.now()}`
+  const promises: Promise<void>[] = []
 
-  if (teacherChatId) promises.push(sendTelegramMessage({ chatId: teacherChatId, text: message }))
+  if (teacherChatId) {
+    promises.push(
+      sendTelegramMessage({ chatId: teacherChatId, text: message }).then((ok) =>
+        logNotification(bookingId, 'teacher', 'recurring', ok ? 'sent' : 'failed', message)
+      )
+    )
+  }
 
   const adminChatId = settings?.telegramAdminChatId ?? process.env.TELEGRAM_ADMIN_CHAT_ID
   if (settings?.telegramNotifyAdmin && adminChatId) {
-    promises.push(sendTelegramMessage({ chatId: adminChatId, text: message }))
+    promises.push(
+      sendTelegramMessage({ chatId: adminChatId, text: message }).then((ok) =>
+        logNotification(bookingId, 'admin', 'recurring', ok ? 'sent' : 'failed', message)
+      )
+    )
   }
 
   await Promise.allSettled(promises)
