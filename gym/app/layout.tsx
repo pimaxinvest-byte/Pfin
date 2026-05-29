@@ -8,9 +8,10 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
   title: 'GymBook — Reservas de Gimnasio',
-  description: 'Sistema de gestión de reservas para gimnasios',
+  description: 'Sistema de gestión de reservas para gimnasios · v1.1 by Pietro',
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'GymBook' },
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'GymBook' },
+  icons: { icon: '/logo.svg', apple: '/logo.svg' },
 }
 
 export const viewport: Viewport = {

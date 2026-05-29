@@ -2,111 +2,117 @@
 
 import { useState, useCallback } from 'react'
 import { addDays, addWeeks, addMonths, subDays, subWeeks, subMonths } from 'date-fns'
-import { DayView } from './DayView'
-import { WeekView } from './WeekView'
+import { DayView }   from './DayView'
+import { WeekView }  from './WeekView'
 import { MonthView } from './MonthView'
 import { BookingDetail } from './BookingDetail'
 import { formatDate, MONTH_NAMES_ES } from '@/lib/utils'
 import type { BookingWithRelations } from '@/lib/types'
 
-type CalendarView = 'day' | 'week' | 'month'
+type View = 'day' | 'week' | 'month'
 
 interface CalendarProps {
   bookings: BookingWithRelations[]
   role?: string
   userId?: string
-  onBook?: (booking: BookingWithRelations) => void
-  onCancel?: (booking: BookingWithRelations) => void
-  onDelete?: (booking: BookingWithRelations) => void
+  onBook?:   (b: BookingWithRelations) => void
+  onCancel?: (b: BookingWithRelations) => void
+  onDelete?: (b: BookingWithRelations) => void
 }
 
+const VIEW_LABELS: Record<View, string> = { day: 'Día', week: 'Semana', month: 'Mes' }
+
 export function Calendar({ bookings, role, userId, onBook, onCancel, onDelete }: CalendarProps) {
-  const [view, setView] = useState<CalendarView>('week')
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const [view, setView]                     = useState<View>('week')
+  const [date, setDate]                     = useState(new Date())
   const [selectedBooking, setSelectedBooking] = useState<BookingWithRelations | null>(null)
-  const [selectedDay, setSelectedDay] = useState<Date | null>(null)
+  const [selectedDay, setSelectedDay]       = useState<Date | null>(null)
 
   const navigate = useCallback((dir: 1 | -1) => {
-    setCurrentDate((prev) => {
-      if (view === 'day') return dir === 1 ? addDays(prev, 1) : subDays(prev, 1)
-      if (view === 'week') return dir === 1 ? addWeeks(prev, 1) : subWeeks(prev, 1)
-      return dir === 1 ? addMonths(prev, 1) : subMonths(prev, 1)
-    })
+    setDate((prev) =>
+      view === 'day'   ? (dir === 1 ? addDays(prev, 1)    : subDays(prev, 1)) :
+      view === 'week'  ? (dir === 1 ? addWeeks(prev, 1)   : subWeeks(prev, 1)) :
+                         (dir === 1 ? addMonths(prev, 1)  : subMonths(prev, 1))
+    )
   }, [view])
 
-  function getTitle() {
-    if (view === 'day') return formatDate(currentDate, "d 'de' MMMM yyyy")
-    if (view === 'week') return `Semana del ${formatDate(currentDate, "d MMM")}`
-    return `${MONTH_NAMES_ES[currentDate.getMonth()]} ${currentDate.getFullYear()}`
+  function title() {
+    if (view === 'day')   return formatDate(date, "d 'de' MMMM yyyy")
+    if (view === 'week')  return `${formatDate(date, "d MMM")} – semana`
+    return `${MONTH_NAMES_ES[date.getMonth()]} ${date.getFullYear()}`
   }
 
   function handleDayClick(day: Date) {
     setSelectedDay(day)
-    setCurrentDate(day)
+    setDate(day)
     setView('day')
+  }
+
+  function handleBook(b: BookingWithRelations) {
+    setSelectedBooking(null)
+    onBook?.(b)
+  }
+
+  function handleCancel(b: BookingWithRelations) {
+    setSelectedBooking(null)
+    onCancel?.(b)
+  }
+
+  function handleDelete(b: BookingWithRelations) {
+    setSelectedBooking(null)
+    onDelete?.(b)
   }
 
   return (
     <div className="space-y-3">
-      {/* View switcher */}
-      <div className="flex bg-gray-100 rounded-2xl p-1">
-        {(['day', 'week', 'month'] as CalendarView[]).map((v) => (
-          <button
-            key={v}
-            onClick={() => setView(v)}
-            className={`flex-1 py-2 text-sm font-medium rounded-xl transition-colors ${
-              view === v ? 'bg-white text-sky-600 shadow-sm' : 'text-gray-500'
-            }`}
-          >
-            {v === 'day' ? 'Día' : v === 'week' ? 'Semana' : 'Mes'}
-          </button>
-        ))}
+
+      {/* Controls row */}
+      <div className="flex items-center gap-2">
+        {/* View switcher */}
+        <div className="tab-bar flex-1">
+          {(Object.keys(VIEW_LABELS) as View[]).map((v) => (
+            <button key={v} onClick={() => setView(v)} className={`tab-item ${view === v ? 'active' : ''}`}>
+              {VIEW_LABELS[v]}
+            </button>
+          ))}
+        </div>
+
+        {/* Today button */}
+        <button
+          onClick={() => { setDate(new Date()); setSelectedDay(null) }}
+          className="btn-icon text-xs font-bold flex-shrink-0"
+          style={{ color: 'var(--brand)' }}
+        >
+          Hoy
+        </button>
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => navigate(-1)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 text-gray-600"
-        >
-          ‹
+      <div className="flex items-center gap-2">
+        <button onClick={() => navigate(-1)} className="btn-icon">
+          <span className="text-sm font-bold">‹</span>
         </button>
-        <button
-          onClick={() => { setCurrentDate(new Date()); setSelectedDay(null) }}
-          className="text-sm font-semibold text-gray-900 px-3 py-1.5 rounded-xl hover:bg-gray-100 capitalize"
-        >
-          {getTitle()}
-        </button>
-        <button
-          onClick={() => navigate(1)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl bg-gray-100 text-gray-600"
-        >
-          ›
+        <p className="flex-1 text-center text-sm font-semibold text-[var(--ink)] capitalize">
+          {title()}
+        </p>
+        <button onClick={() => navigate(1)} className="btn-icon">
+          <span className="text-sm font-bold">›</span>
         </button>
       </div>
 
-      {/* Calendar view */}
-      {view === 'day' && (
-        <DayView date={currentDate} bookings={bookings} onBookingClick={setSelectedBooking} />
-      )}
-      {view === 'week' && (
-        <WeekView date={currentDate} bookings={bookings} onBookingClick={setSelectedBooking} />
-      )}
-      {view === 'month' && (
-        <MonthView
-          date={currentDate}
-          bookings={bookings}
-          onDayClick={handleDayClick}
-          selectedDay={selectedDay}
-        />
-      )}
+      {/* View */}
+      <div className="animate-fade-in">
+        {view === 'day'   && <DayView   date={date} bookings={bookings} onBookingClick={setSelectedBooking} />}
+        {view === 'week'  && <WeekView  date={date} bookings={bookings} onBookingClick={setSelectedBooking} />}
+        {view === 'month' && <MonthView date={date} bookings={bookings} onDayClick={handleDayClick} selectedDay={selectedDay} />}
+      </div>
 
       <BookingDetail
         booking={selectedBooking}
         onClose={() => setSelectedBooking(null)}
-        onBook={onBook}
-        onCancel={onCancel}
-        onDelete={onDelete}
+        onBook={handleBook}
+        onCancel={handleCancel}
+        onDelete={handleDelete}
         role={role}
         userId={userId}
       />

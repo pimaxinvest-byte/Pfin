@@ -1,7 +1,7 @@
 {
-  "name": "GymBook",
+  "name": "GymBook by Pietro",
   "short_name": "GymBook",
-  "description": "Sistema de reservas de gimnasio",
+  "description": "Sistema de reservas de gimnasio · v1.1",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

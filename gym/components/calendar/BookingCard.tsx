@@ -5,31 +5,48 @@ import type { BookingWithRelations } from '@/lib/types'
 
 interface BookingCardProps {
   booking: BookingWithRelations
-  onClick: (booking: BookingWithRelations) => void
+  onClick: (b: BookingWithRelations) => void
   compact?: boolean
 }
 
+const STATUS_ICON: Record<string, string> = {
+  available: '○',
+  booked:    '●',
+  cancelled: '✕',
+  completed: '✓',
+  blocked:   '⊘',
+}
+
 export function BookingCard({ booking, onClick, compact }: BookingCardProps) {
-  const color = booking.color ?? booking.teacher.teacherProfile?.color ?? '#0ea5e9'
-  const bg = hexToRgba(color, 0.15)
+  const color = booking.color ?? booking.teacher.teacherProfile?.color ?? '#6366f1'
 
   return (
     <button
       onClick={() => onClick(booking)}
-      className="w-full text-left rounded-xl px-2 py-1.5 mb-1 border-l-4 transition-all active:scale-95"
-      style={{ backgroundColor: bg, borderColor: color }}
+      className="w-full text-left rounded-2xl px-3 py-2.5 mb-1.5
+                 transition-all duration-150 active:scale-95 border border-white/60"
+      style={{
+        background: hexToRgba(color, 0.10),
+        borderLeft: `3px solid ${color}`,
+      }}
     >
-      <div className="flex items-center justify-between gap-1">
-        <span className="text-xs font-semibold truncate" style={{ color }}>
-          {formatTime(booking.startDatetime)} - {formatTime(booking.endDatetime)}
+      <div className="flex items-center justify-between gap-1 mb-0.5">
+        <span className="text-[11px] font-bold tabular-nums" style={{ color }}>
+          {formatTime(booking.startDatetime)}
+          {!compact && ` – ${formatTime(booking.endDatetime)}`}
         </span>
-        {!compact && (
-          <span className="text-xs text-gray-500 truncate">{booking.activity.name}</span>
-        )}
+        <span className="text-[10px]" style={{ color }}>
+          {STATUS_ICON[booking.status] ?? '○'}
+        </span>
       </div>
-      <p className="text-xs text-gray-700 truncate">{booking.teacher.name}</p>
-      {booking.client && (
-        <p className="text-xs text-gray-500 truncate">👤 {booking.client.name}</p>
+      <p className="text-xs font-semibold text-[var(--ink)] truncate leading-tight">
+        {compact ? booking.teacher.name.split(' ')[0] : booking.activity.name}
+      </p>
+      {!compact && (
+        <p className="text-[10px] text-[var(--ink-3)] truncate mt-0.5">
+          {booking.teacher.name}
+          {booking.client && ` · ${booking.client.name}`}
+        </p>
       )}
     </button>
   )

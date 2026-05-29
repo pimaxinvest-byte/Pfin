@@ -8,9 +8,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!session?.user || session.user.role !== 'admin') redirect('/login')
 
   return (
-    <div className="page-container">
-      <Header title="🏋️ GymBook Admin" showLogout />
-      <main className="px-4 py-4">{children}</main>
+    <div className="page">
+      <Header showLogo showLogout subtitle="Admin" />
+      <main className="page-content">{children}</main>
       <BottomNav role="admin" />
     </div>
   )

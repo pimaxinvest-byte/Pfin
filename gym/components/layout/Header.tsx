@@ -1,41 +1,66 @@
 'use client'
 
 import { signOut } from 'next-auth/react'
-import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { cn } from '@/lib/utils'
+import { Logo } from '@/components/ui/Logo'
 
 interface HeaderProps {
   title?: string
+  subtitle?: string
   showBack?: boolean
   onBack?: () => void
   showLogout?: boolean
+  transparent?: boolean
+  showLogo?: boolean
+  right?: React.ReactNode
 }
 
-export function Header({ title, showBack, onBack, showLogout }: HeaderProps) {
-  const { data: session } = useSession()
+export function Header({
+  title, subtitle, showBack, onBack, showLogout,
+  transparent, showLogo, right,
+}: HeaderProps) {
+  const router = useRouter()
 
   return (
-    <header className="bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
-      <div className="flex items-center gap-3">
+    <header
+      className={cn(
+        'fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-lg z-40 px-4',
+        'flex items-center justify-between gap-3',
+        !transparent && 'glass border-b border-white/60',
+      )}
+      style={{ height: 'var(--header-h)' }}
+    >
+      <div className="flex items-center gap-3 min-w-0">
         {showBack && (
-          <button onClick={onBack} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100">
-            ←
+          <button onClick={onBack ?? (() => router.back())} className="btn-icon flex-shrink-0">
+            <span className="text-base leading-none">←</span>
           </button>
         )}
-        <div>
-          <h1 className="text-base font-semibold text-gray-900">{title || '🏋️ GymBook'}</h1>
-          {session?.user && (
-            <p className="text-xs text-gray-400">{session.user.name}</p>
-          )}
-        </div>
+
+        {showLogo ? (
+          <Logo size={34} withText textColor="var(--ink)" />
+        ) : (
+          <div className="min-w-0">
+            <h1 className={cn('font-bold leading-tight truncate', subtitle ? 'text-sm' : 'text-base')}>
+              {title ?? 'GymBook'}
+            </h1>
+            {subtitle && <p className="text-xs text-[var(--ink-3)] truncate">{subtitle}</p>}
+          </div>
+        )}
       </div>
-      {showLogout && (
-        <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
-          className="text-sm text-gray-500 bg-gray-100 px-3 py-1.5 rounded-xl"
-        >
-          Salir
-        </button>
-      )}
+
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {right}
+        {showLogout && (
+          <button
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="btn-icon" title="Cerrar sesión"
+          >
+            <span className="text-sm leading-none">⎋</span>
+          </button>
+        )}
+      </div>
     </header>
   )
 }

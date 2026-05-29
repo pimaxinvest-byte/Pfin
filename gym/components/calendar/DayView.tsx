@@ -8,32 +8,44 @@ import { isSameDay } from 'date-fns'
 interface DayViewProps {
   date: Date
   bookings: BookingWithRelations[]
-  onBookingClick: (booking: BookingWithRelations) => void
+  onBookingClick: (b: BookingWithRelations) => void
 }
 
-const HOURS = Array.from({ length: 14 }, (_, i) => i + 7) // 7am to 8pm
-
 export function DayView({ date, bookings, onBookingClick }: DayViewProps) {
-  const dayBookings = bookings.filter((b) => isSameDay(new Date(b.startDatetime), date))
-  const sortedBookings = [...dayBookings].sort(
-    (a, b) => new Date(a.startDatetime).getTime() - new Date(b.startDatetime).getTime()
-  )
+  const dayBookings = [...bookings]
+    .filter((b) => isSameDay(new Date(b.startDatetime), date))
+    .sort((a, b) => new Date(a.startDatetime).getTime() - new Date(b.startDatetime).getTime())
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden">
-      <div className="bg-sky-50 px-4 py-3 border-b border-sky-100">
-        <h3 className="font-semibold text-sky-900 capitalize">{formatDate(date, "EEEE d 'de' MMMM")}</h3>
-        <p className="text-sm text-sky-600">{dayBookings.length} reserva{dayBookings.length !== 1 ? 's' : ''}</p>
+    <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+      {/* Day header */}
+      <div className="px-4 py-3 flex items-center justify-between"
+        style={{ background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-3)]">
+            {formatDate(date, 'EEEE')}
+          </p>
+          <p className="text-xl font-bold text-[var(--ink)] leading-tight">
+            {formatDate(date, "d 'de' MMMM")}
+          </p>
+        </div>
+        {dayBookings.length > 0 && (
+          <div className="w-9 h-9 rounded-2xl flex items-center justify-center text-sm font-bold text-white"
+            style={{ background: 'var(--brand)' }}>
+            {dayBookings.length}
+          </div>
+        )}
       </div>
 
-      {sortedBookings.length === 0 ? (
-        <div className="py-12 text-center text-gray-400">
-          <p className="text-3xl mb-2">📭</p>
-          <p className="text-sm">Sin reservas este día</p>
+      {/* Bookings */}
+      {dayBookings.length === 0 ? (
+        <div className="py-14 text-center bg-white">
+          <p className="text-4xl mb-3">📭</p>
+          <p className="text-sm font-medium text-[var(--ink-3)]">Sin reservas este día</p>
         </div>
       ) : (
-        <div className="p-3 space-y-1">
-          {sortedBookings.map((b) => (
+        <div className="bg-white p-3">
+          {dayBookings.map((b) => (
             <BookingCard key={b.id} booking={b} onClick={onBookingClick} />
           ))}
         </div>

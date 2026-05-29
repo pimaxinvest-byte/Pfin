@@ -9,42 +9,55 @@ import { cn } from '@/lib/utils'
 interface WeekViewProps {
   date: Date
   bookings: BookingWithRelations[]
-  onBookingClick: (booking: BookingWithRelations) => void
+  onBookingClick: (b: BookingWithRelations) => void
 }
 
 export function WeekView({ date, bookings, onBookingClick }: WeekViewProps) {
-  const days = getWeekDays(date)
+  const days  = getWeekDays(date)
   const today = new Date()
 
   return (
-    <div className="overflow-x-auto scrollbar-hide">
-      <div className="grid grid-cols-7 gap-1 min-w-[560px]">
-        {days.map((day) => {
+    <div className="overflow-x-auto scrollbar-hide rounded-2xl"
+      style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+      <div className="grid grid-cols-7 gap-0 min-w-[420px]">
+        {days.map((day, i) => {
           const dayBookings = bookings.filter((b) => isSameDay(new Date(b.startDatetime), day))
-          const isToday = isSameDay(day, today)
+          const isToday     = isSameDay(day, today)
 
           return (
-            <div key={day.toISOString()} className="min-w-0">
+            <div key={day.toISOString()} className={cn(
+              'p-1.5',
+              i < days.length - 1 && 'border-r border-[var(--border)]'
+            )}>
+              {/* Day pill */}
               <div className={cn(
-                'text-center py-1.5 mb-1 rounded-xl',
-                isToday ? 'bg-sky-500 text-white' : 'bg-gray-50 text-gray-600'
-              )}>
-                <div className="text-xs font-medium">{DAY_NAMES_ES[(day.getDay())]}</div>
-                <div className="text-sm font-bold">{formatDate(day, 'd')}</div>
+                'flex flex-col items-center py-2 rounded-xl mb-1.5 transition-colors',
+                isToday ? 'text-white' : 'text-[var(--ink-2)]'
+              )}
+                style={isToday ? { background: 'var(--brand)' } : { background: 'var(--surface-2)' }}>
+                <span className="text-[9px] font-bold uppercase tracking-wider opacity-80">
+                  {DAY_NAMES_ES[day.getDay()]}
+                </span>
+                <span className="text-sm font-bold">{formatDate(day, 'd')}</span>
                 {dayBookings.length > 0 && (
-                  <div className={cn(
-                    'text-xs mt-0.5',
-                    isToday ? 'text-sky-100' : 'text-sky-500'
-                  )}>{dayBookings.length}</div>
+                  <span className={cn(
+                    'text-[9px] font-bold mt-0.5 px-1.5 rounded-full',
+                    isToday ? 'bg-white/20 text-white' : 'text-[var(--brand)]'
+                  )}>
+                    {dayBookings.length}
+                  </span>
                 )}
               </div>
 
+              {/* Booking slots */}
               <div className="space-y-0.5">
-                {dayBookings.slice(0, 4).map((b) => (
+                {dayBookings.slice(0, 3).map((b) => (
                   <BookingCard key={b.id} booking={b} onClick={onBookingClick} compact />
                 ))}
-                {dayBookings.length > 4 && (
-                  <p className="text-xs text-gray-400 text-center">+{dayBookings.length - 4} más</p>
+                {dayBookings.length > 3 && (
+                  <p className="text-[9px] font-semibold text-center text-[var(--ink-3)] py-0.5">
+                    +{dayBookings.length - 3}
+                  </p>
                 )}
               </div>
             </div>

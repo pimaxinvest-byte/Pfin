@@ -8,9 +8,9 @@ export default async function ClientLayout({ children }: { children: React.React
   if (!session?.user) redirect('/login')
 
   return (
-    <div className="page-container">
-      <Header title="🏋️ GymBook" showLogout />
-      <main className="px-4 py-4">{children}</main>
+    <div className="page">
+      <Header showLogo showLogout />
+      <main className="page-content">{children}</main>
       <BottomNav role="client" />
     </div>
   )

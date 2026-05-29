@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
+import { Credits } from '@/components/ui/Credits'
 
 interface Settings {
   gymName: string
@@ -135,6 +136,8 @@ export default function SettingsPage() {
       <button onClick={handleSave} disabled={saving} className="btn-primary">
         {saving ? 'Guardando...' : 'Guardar configuración'}
       </button>
+
+      <Credits />
     </div>
   )
 }
