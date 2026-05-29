@@ -1,0 +1,162 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  teacher
+  client
+}
+
+enum BookingStatus {
+  available
+  booked
+  cancelled
+  completed
+  blocked
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  password        String
+  name            String
+  role            Role     @default(client)
+  telegramChatId  String?  @map("telegram_chat_id")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  teacherProfile  TeacherProfile?
+  teacherBookings Booking[]       @relation("TeacherBookings")
+  clientBookings  Booking[]       @relation("ClientBookings")
+  createdBookings Booking[]       @relation("CreatedBookings")
+
+  @@map("users")
+}
+
+model TeacherProfile {
+  id          String   @id @default(cuid())
+  userId      String   @unique @map("user_id")
+  color       String   @default("#0ea5e9")
+  bio         String?
+  specialties String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("teacher_profiles")
+}
+
+model Space {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  capacity    Int      @default(1)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  bookings Booking[]
+
+  @@map("spaces")
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  duration    Int      @default(60)
+  maxClients  Int      @default(1) @map("max_clients")
+  color       String   @default("#10b981")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  bookings Booking[]
+
+  @@map("activities")
+}
+
+model Booking {
+  id            String        @id @default(cuid())
+  teacherId     String        @map("teacher_id")
+  clientId      String?       @map("client_id")
+  spaceId       String        @map("space_id")
+  activityId    String        @map("activity_id")
+  startDatetime DateTime      @map("start_datetime")
+  endDatetime   DateTime      @map("end_datetime")
+  status        BookingStatus @default(available)
+  color         String?
+  notes         String?
+  recurrenceId  String?       @map("recurrence_id")
+  createdBy     String        @map("created_by")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  teacher   User     @relation("TeacherBookings", fields: [teacherId], references: [id])
+  client    User?    @relation("ClientBookings", fields: [clientId], references: [id])
+  space     Space    @relation(fields: [spaceId], references: [id])
+  activity  Activity @relation(fields: [activityId], references: [id])
+  createdByUser User @relation("CreatedBookings", fields: [createdBy], references: [id])
+
+  recurrenceRule BookingRecurrenceRule? @relation(fields: [recurrenceId], references: [id])
+  notifications  NotificationLog[]
+
+  @@map("bookings")
+}
+
+model BookingRecurrenceRule {
+  id          String   @id @default(cuid())
+  teacherId   String   @map("teacher_id")
+  spaceId     String   @map("space_id")
+  activityId  String   @map("activity_id")
+  daysOfWeek  Int[]    @map("days_of_week")
+  startDate   DateTime @map("start_date")
+  endDate     DateTime @map("end_date")
+  startTime   String   @map("start_time")
+  endTime     String   @map("end_time")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  bookings Booking[]
+
+  @@map("booking_recurrence_rules")
+}
+
+model AppSettings {
+  id                  String   @id @default(cuid())
+  gymName             String   @default("Mi Gimnasio") @map("gym_name")
+  logoUrl             String?  @map("logo_url")
+  primaryColor        String   @default("#0ea5e9") @map("primary_color")
+  secondaryColor      String   @default("#10b981") @map("secondary_color")
+  openingHours        Json?    @map("opening_hours")
+  confirmationText    String?  @map("confirmation_text")
+  sessionDuration     Int      @default(60) @map("session_duration")
+  telegramBotToken    String?  @map("telegram_bot_token")
+  telegramAdminChatId String?  @map("telegram_admin_chat_id")
+  telegramNotifyAdmin Boolean  @default(true) @map("telegram_notify_admin")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
+
+model NotificationLog {
+  id        String   @id @default(cuid())
+  bookingId String?  @map("booking_id")
+  recipient String
+  type      String
+  status    String
+  message   String
+  sentAt    DateTime @default(now()) @map("sent_at")
+
+  booking Booking? @relation(fields: [bookingId], references: [id])
+
+  @@map("notifications_log")
+}
