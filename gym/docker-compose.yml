@@ -1,0 +1,39 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: gymbook
+      POSTGRES_PASSWORD: gymbook123
+      POSTGRES_DB: gym_booking
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gymbook"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://gymbook:gymbook123@postgres:5432/gym_booking
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: changeme-generate-with-openssl-rand-base64-32
+      TELEGRAM_BOT_TOKEN: ""
+      TELEGRAM_ADMIN_CHAT_ID: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma migrate deploy &&
+             npx prisma db seed &&
+             node server.js"
+
+volumes:
+  pgdata:

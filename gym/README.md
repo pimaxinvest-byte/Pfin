@@ -72,20 +72,50 @@ Abre [http://localhost:3000](http://localhost:3000).
 
 ## Despliegue
 
-### Railway / Render / Fly.io
+### 🚂 Railway (recomendado — un clic)
 
-1. Crea una base de datos PostgreSQL
-2. Configura las variables de entorno
-3. Conecta el repo y despliega la carpeta `gym/`
+1. Ve a [railway.app](https://railway.app) → **New Project → Deploy from GitHub Repo**
+2. Selecciona el repo `pimaxinvest-byte/Pfin`
+3. En **Settings → Root Directory** escribe: `gym`
+4. Añade un servicio **PostgreSQL**: click en **+ New → Database → PostgreSQL**
+5. En el servicio gym, configura las **variables de entorno**:
 
-### Vercel (recomendado)
+| Variable | Valor |
+|----------|-------|
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (Railway lo rellena auto) |
+| `NEXTAUTH_URL` | `https://tu-app.railway.app` |
+| `NEXTAUTH_SECRET` | genera con: `openssl rand -base64 32` |
+| `TELEGRAM_BOT_TOKEN` | token de @BotFather (opcional) |
+| `TELEGRAM_ADMIN_CHAT_ID` | tu chat ID (opcional) |
+
+6. Despliega → Railway ejecuta automáticamente `prisma migrate deploy`
+7. Para cargar datos de ejemplo, abre la consola de Railway y ejecuta:
+   ```bash
+   npx prisma db seed
+   ```
+
+### 🐳 Docker Compose (local con PostgreSQL incluido)
 
 ```bash
 cd gym
-npx vercel
+docker compose up --build
+# App en http://localhost:3000
 ```
 
-Configura las env vars en el dashboard de Vercel.
+Los datos de ejemplo se cargan automáticamente.
+
+### ▲ Vercel + Supabase
+
+1. Crea una base de datos en [supabase.com](https://supabase.com) → copia la `DATABASE_URL`
+2. En la raíz del repo crea `vercel.json`:
+   ```json
+   { "rootDirectory": "gym" }
+   ```
+3. Despliega:
+   ```bash
+   cd gym && npx vercel --prod
+   ```
+4. En Vercel Dashboard → Settings → Environment Variables añade las mismas variables que en Railway
 
 ## Telegram
 
