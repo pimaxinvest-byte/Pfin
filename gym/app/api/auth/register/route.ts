@@ -7,7 +7,7 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   name: z.string().min(2),
-  role: z.enum(['admin', 'teacher', 'client']).optional().default('client'),
+  role: z.literal('client').optional().default('client'),
 })
 
 export async function POST(req: Request) {
@@ -27,9 +27,6 @@ export async function POST(req: Request) {
         password: hashed,
         name: data.name,
         role: data.role,
-        ...(data.role === 'teacher' && {
-          teacherProfile: { create: { color: '#0ea5e9' } },
-        }),
       },
     })
 

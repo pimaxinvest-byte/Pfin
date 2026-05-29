@@ -47,23 +47,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (isActive !== undefined) updateData.isActive = isActive
     }
 
+    const profileFields: Record<string, unknown> = {}
+    if (color !== undefined) profileFields.color = color
+    if (bio !== undefined) profileFields.bio = bio
+    if (specialties !== undefined) profileFields.specialties = specialties
+
     const user = await prisma.user.update({
       where: { id },
       data: {
         ...updateData,
-        ...(color !== undefined && {
+        ...(Object.keys(profileFields).length > 0 && {
           teacherProfile: {
             upsert: {
-              create: { color },
-              update: { color },
-            },
-          },
-        }),
-        ...(bio !== undefined && {
-          teacherProfile: {
-            upsert: {
-              create: { bio },
-              update: { bio },
+              create: profileFields,
+              update: profileFields,
             },
           },
         }),
