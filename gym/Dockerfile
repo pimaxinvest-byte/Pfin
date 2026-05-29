@@ -4,7 +4,7 @@ RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci --legacy-peer-deps --ignore-scripts
 
 ### ── Stage 2: Prisma generate ────────────────────────────────
 FROM node:22-alpine AS prisma
