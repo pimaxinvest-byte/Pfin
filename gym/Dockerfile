@@ -1,38 +1,26 @@
-### ── Stage 1: Dependencies ──────────────────────────────────
+### ── Stage 1: Install deps + generate Prisma client ─────────
 FROM node:22-alpine AS deps
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps --ignore-scripts
-
-### ── Stage 2: Prisma generate ────────────────────────────────
-FROM node:22-alpine AS prisma
-RUN apk add --no-cache openssl
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
 COPY prisma ./prisma
-RUN npx prisma generate
+RUN npm ci --legacy-peer-deps
 
-### ── Stage 3: Build ──────────────────────────────────────────
+### ── Stage 2: Build Next.js ──────────────────────────────────
 FROM node:22-alpine AS builder
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=prisma /app/node_modules/.prisma ./node_modules/.prisma
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-ARG DATABASE_URL
-ARG NEXTAUTH_SECRET
-ARG NEXTAUTH_URL
-
 RUN npm run build
 
-### ── Stage 4: Runner ─────────────────────────────────────────
+### ── Stage 3: Production runner ──────────────────────────────
 FROM node:22-alpine AS runner
 RUN apk add --no-cache openssl
 WORKDIR /app
@@ -40,8 +28,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
