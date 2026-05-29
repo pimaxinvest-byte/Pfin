@@ -10,27 +10,27 @@ const bookingInclude = {
   activity: { select: { id: true, name: true, color: true } },
 }
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getSession()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (session.user.role !== 'client') {
     return NextResponse.json({ error: 'Solo los clientes pueden reservar' }, { status: 403 })
   }
 
-  const exists = await prisma.booking.findUnique({ where: { id: params.id } })
+  const exists = await prisma.booking.findUnique({ where: { id } })
   if (!exists) return NextResponse.json({ error: 'Reserva no encontrada' }, { status: 404 })
 
   const { notes } = await req.json().catch(() => ({}))
 
   try {
-    // Transactional check-and-update prevents race conditions
     const updated = await prisma.$transaction(async (tx) => {
-      const fresh = await tx.booking.findUnique({ where: { id: params.id } })
+      const fresh = await tx.booking.findUnique({ where: { id } })
       if (!fresh || fresh.status !== 'available') {
         throw new Error('SLOT_NOT_AVAILABLE')
       }
       return tx.booking.update({
-        where: { id: params.id },
+        where: { id },
         data: { clientId: session.user.id, status: 'booked', notes: notes || fresh.notes },
         include: bookingInclude,
       })

@@ -10,29 +10,29 @@ const bookingInclude = {
   activity: { select: { id: true, name: true, color: true } },
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getSession()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const booking = await prisma.booking.findUnique({ where: { id: params.id }, include: bookingInclude })
+  const booking = await prisma.booking.findUnique({ where: { id }, include: bookingInclude })
   if (!booking) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
   return NextResponse.json(booking)
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getSession()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const existing = await prisma.booking.findUnique({ where: { id: params.id }, include: bookingInclude })
+  const existing = await prisma.booking.findUnique({ where: { id }, include: bookingInclude })
   if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
-  // Role-based access control
   if (session.user.role === 'teacher' && existing.teacherId !== session.user.id) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
   if (session.user.role === 'client') {
-    // Clients can only cancel their own booking - nothing else
     if (existing.clientId !== session.user.id) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
@@ -42,13 +42,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const body = await req.json()
     const { status, clientId, notes, startDatetime, endDatetime } = body
 
-    // Clients can only set status to cancelled - no other modifications allowed
     if (session.user.role === 'client') {
       if (status !== 'cancelled') {
         return NextResponse.json({ error: 'Los clientes solo pueden cancelar reservas' }, { status: 403 })
       }
       const cancelled = await prisma.booking.update({
-        where: { id: params.id },
+        where: { id },
         data: { status: 'cancelled' },
         include: bookingInclude,
       })
@@ -68,14 +67,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return NextResponse.json(cancelled)
     }
 
-    // Check for time conflicts if rescheduling
     if (startDatetime || endDatetime) {
       const newStart = startDatetime ? new Date(startDatetime) : existing.startDatetime
       const newEnd = endDatetime ? new Date(endDatetime) : existing.endDatetime
       const conflict = await prisma.booking.findFirst({
         where: {
           spaceId: existing.spaceId,
-          id: { not: params.id },
+          id: { not: id },
           status: { notIn: ['cancelled', 'blocked'] },
           OR: [{ startDatetime: { lt: newEnd }, endDatetime: { gt: newStart } }],
         },
@@ -86,7 +84,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     const updated = await prisma.booking.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(status !== undefined && { status }),
         ...(clientId !== undefined && { clientId }),
@@ -123,18 +121,19 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getSession()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (session.user.role === 'client') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const existing = await prisma.booking.findUnique({ where: { id: params.id }, include: bookingInclude })
+  const existing = await prisma.booking.findUnique({ where: { id }, include: bookingInclude })
   if (!existing) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
 
   if (session.user.role === 'teacher' && existing.teacherId !== session.user.id) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 
-  await prisma.booking.delete({ where: { id: params.id } })
+  await prisma.booking.delete({ where: { id } })
   return NextResponse.json({ ok: true })
 }

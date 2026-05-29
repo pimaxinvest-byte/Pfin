@@ -3,17 +3,17 @@ import { prisma } from '@/lib/prisma'
 import { getSession } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getSession()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Users can view their own profile, admin can view all
-  if (session.user.role !== 'admin' && session.user.id !== params.id) {
+  if (session.user.role !== 'admin' && session.user.id !== id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const user = await prisma.user.findUnique({
-    where: { id: params.id },
+    where: { id },
     select: {
       id: true, name: true, email: true, role: true, isActive: true,
       telegramChatId: true, createdAt: true,
@@ -25,11 +25,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return NextResponse.json(user)
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getSession()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  if (session.user.role !== 'admin' && session.user.id !== params.id) {
+  if (session.user.role !== 'admin' && session.user.id !== id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -47,7 +48,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     const user = await prisma.user.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...updateData,
         ...(color !== undefined && {
@@ -76,12 +77,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getSession()
   if (!session?.user || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  await prisma.user.delete({ where: { id: params.id } })
+  await prisma.user.delete({ where: { id } })
   return NextResponse.json({ ok: true })
 }
