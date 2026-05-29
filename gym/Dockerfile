@@ -8,6 +8,7 @@ RUN npm ci --legacy-peer-deps --ignore-scripts
 
 ### ── Stage 2: Prisma generate ────────────────────────────────
 FROM node:22-alpine AS prisma
+RUN apk add --no-cache openssl
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY prisma ./prisma
@@ -15,7 +16,7 @@ RUN npx prisma generate
 
 ### ── Stage 3: Build ──────────────────────────────────────────
 FROM node:22-alpine AS builder
-RUN apk add --no-cache openssl
+RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
