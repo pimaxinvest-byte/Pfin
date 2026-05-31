@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  teacher
+  client
+}
+
+enum BookingStatus {
+  available
+  booked
+  cancelled
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(client)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teacherBookings Booking[] @relation("TeacherBookings")
+  clientBookings  Booking[] @relation("ClientBookings")
+
+  @@map("users")
+}
+
+model Space {
+  id        String   @id @default(cuid())
+  name      String
+  capacity  Int      @default(1)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings Booking[]
+
+  @@map("spaces")
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  name      String
+  duration  Int      @default(60)
+  color     String   @default("#2563eb")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings Booking[]
+
+  @@map("activities")
+}
+
+model Booking {
+  id        String        @id @default(cuid())
+  teacherId String
+  clientId  String?
+  spaceId   String
+  activityId String
+  startsAt  DateTime
+  endsAt    DateTime
+  status    BookingStatus @default(available)
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  teacher  User     @relation("TeacherBookings", fields: [teacherId], references: [id])
+  client   User?    @relation("ClientBookings", fields: [clientId], references: [id])
+  space    Space    @relation(fields: [spaceId], references: [id])
+  activity Activity @relation(fields: [activityId], references: [id])
+
+  @@index([teacherId, startsAt])
+  @@index([clientId, startsAt])
+  @@index([status, startsAt])
+  @@map("bookings")
+}
