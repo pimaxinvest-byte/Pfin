@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
 import { formatDate, formatTime } from '@/lib/utils'
 
+export const dynamic = 'force-dynamic'
+
 async function getUpcomingBookings(userId: string) {
   return prisma.booking.findMany({
     where: { clientId: userId, startDatetime: { gte: new Date() }, status: 'booked' },

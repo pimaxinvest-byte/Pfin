@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfDay, endOfDay } from 'date-fns'
 import Link from 'next/link'
 
+export const dynamic = 'force-dynamic'
+
 async function getStats() {
   const now = new Date()
   const [today, thisWeek, thisMonth, total, teachers, clients] = await Promise.all([
