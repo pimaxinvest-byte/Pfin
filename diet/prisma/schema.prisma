@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MealType {
+  breakfast
+  lunch
+  dinner
+  snack
+}
+
+enum ActivityLevel {
+  sedentary
+  light
+  moderate
+  active
+  very_active
+}
+
+enum DietGoal {
+  lose
+  maintain
+  gain
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile  UserProfile?
+  goals    UserGoals?
+  diaryEntries DiaryEntry[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id            String        @id @default(cuid())
+  userId        String        @unique
+  weightKg      Float?
+  heightCm      Float?
+  birthYear     Int?
+  activityLevel ActivityLevel @default(moderate)
+  goal          DietGoal      @default(maintain)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model UserGoals {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  kcal      Int      @default(2000)
+  proteinG  Float    @default(150)
+  carbsG    Float    @default(250)
+  fatG      Float    @default(67)
+  fiberG    Float    @default(30)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_goals")
+}
+
+model Food {
+  id          String  @id @default(cuid())
+  name        String
+  brand       String?
+  kcalPer100g Float
+  proteinG    Float
+  carbsG      Float
+  fatG        Float
+  fiberG      Float   @default(0)
+  servingG    Float   @default(100)
+  unit        String  @default("g")
+  verified    Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  entries DiaryEntry[]
+
+  @@index([name])
+  @@map("foods")
+}
+
+model DiaryEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  foodId    String
+  date      String
+  mealType  MealType
+  quantityG Float
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  food Food @relation(fields: [foodId], references: [id])
+
+  @@index([userId, date])
+  @@map("diary_entries")
+}
