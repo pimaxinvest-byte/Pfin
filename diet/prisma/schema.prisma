@@ -12,6 +12,14 @@ enum Sex {
   F
 }
 
+enum BuildingCategory {
+  beginner          // Principiante
+  recreational      // Recreativo / fitness
+  natural_comp      // Competición natural
+  enhanced_comp     // Competición enhanced/farmacológico
+  trt               // Terapia de reemplazo hormonal (TRT)
+}
+
 enum MealType {
   breakfast
   lunch
@@ -47,6 +55,7 @@ model User {
   nutritionPlan   NutritionPlan?
   weeklyCheckins  WeeklyCheckin[]
   assessments     BodyAssessment[]
+  clients         Client[]
 
   @@map("users")
 }
@@ -183,6 +192,103 @@ model WeeklyCheckin {
 
   @@unique([userId, weekDate])
   @@map("weekly_checkins")
+}
+
+// ─── Ficha de cliente (gestionada por el entrenador) ─────────────────────────
+model Client {
+  id               String           @id @default(cuid())
+  trainerId        String
+  code             String?
+
+  // Datos personales
+  name             String
+  email            String?
+  phone            String?
+  birthDate        String?
+  sex              Sex              @default(M)
+  occupation       String?
+  city             String?
+
+  // Objetivo y categoría de culturismo
+  primaryGoal      String?
+  secondaryGoal    String?
+  category         BuildingCategory @default(recreational)
+  competitionDate  String?
+
+  // Terapia farmacológica / anabólica
+  isEnhanced       Boolean          @default(false)
+  enhancedProtocol String?
+  healthCheck      Boolean          @default(false)
+
+  // Antecedentes
+  medicalHistory   String?
+  foodAllergies    String?
+  injuries         String?
+  medications      String?
+
+  // Datos morfológicos iniciales
+  weightKg         Float?
+  heightCm         Float?
+  targetWeightKg   Float?
+  activityLevel    ActivityLevel    @default(moderate)
+
+  // Estado
+  isActive         Boolean          @default(true)
+  trainerNotes     String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  trainer      User             @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  assessments  ClientAssessment[]
+
+  @@index([trainerId])
+  @@map("clients")
+}
+
+// Evaluación corporal de un cliente gestionado
+model ClientAssessment {
+  id        String   @id @default(cuid())
+  clientId  String
+  date      String
+  weightKg  Float?
+
+  // Pliegues (mm)
+  tricepsMm   Float?
+  subscapMm   Float?
+  abdomMm     Float?
+  suprailMm   Float?
+  thighMm     Float?
+
+  // Perímetros (cm)
+  waistCm    Float?
+  hipCm      Float?
+  neckCm     Float?
+  armCm      Float?
+  calfCm     Float?
+  chestCm    Float?
+  thighCm    Float?
+
+  // Resultados
+  bodyFatPct  Float?
+  bodyFatJP   Float?
+  bodyFatNavy Float?
+  fatMassKg   Float?
+  leanMassKg  Float?
+  bmi         Float?
+  bmr         Int?
+  tdee        Int?
+  targetKcal  Int?
+  proteinG    Float?
+  carbsG      Float?
+  fatG        Float?
+
+  notes     String?
+  createdAt DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, date])
+  @@map("client_assessments")
 }
 
 model BodyAssessment {

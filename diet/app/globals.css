@@ -1,21 +1,55 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  /* Daddy's Trainer palette */
+  --gold: #f59e0b;
+  --gold-dark: #d97706;
+  --gold-light: #fef3c7;
   --green: #22c55e;
   --green-dark: #16a34a;
   --green-light: #dcfce7;
   --orange: #f97316;
   --blue: #3b82f6;
   --red: #ef4444;
-  --purple: #a855f7;
-  --bg: #f0fdf4;
+  --purple: #7c3aed;
+  --bg: #fafafa;
   --surface: #ffffff;
   --border: #e2e8f0;
-  --text: #1e293b;
+  --text: #0f172a;
   --muted: #64748b;
   --radius: 14px;
   --nav-h: 64px;
 }
+
+/* Daddy's Trainer header brand */
+.brand-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 0 8px;
+  margin-bottom: 4px;
+}
+.brand-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+  border: 3px solid var(--gold);
+}
+.brand-name {
+  font-size: 1.1rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.brand-name span { color: var(--gold); }
+.brand-sub { font-size: 0.65rem; color: var(--muted); font-weight: 500; }
 
 html {
   -webkit-text-size-adjust: 100%;

@@ -41,12 +41,38 @@ export default async function DashboardPage() {
   return (
     <>
       <div className="page">
+        {/* Daddy's Trainer brand header */}
+        <div className="brand-header">
+          <div className="brand-logo">🏋️</div>
+          <div>
+            <div className="brand-name"><span>DADDY&apos;S</span> TRAINER</div>
+            <div className="brand-sub">Coach Pietro · Nutrición & Culturismo</div>
+          </div>
+        </div>
+
         <div className="top-bar">
           <div>
             <h1>Hola, {session.name.split(' ')[0]} 👋</h1>
             <div style={{ fontSize: '0.8rem', color: 'var(--muted)', textTransform: 'capitalize' }}>{dateLabel}</div>
           </div>
           <Link href="/diary/add" className="btn-icon" style={{ textDecoration: 'none' }}>＋</Link>
+        </div>
+
+        {/* Quick access */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+          {[
+            { href: '/clients', emoji: '👥', label: 'Clientes' },
+            { href: '/assessment/new', emoji: '📐', label: 'Valorar' },
+            { href: '/supplements', emoji: '💊', label: 'Suplementos' },
+            { href: '/juices', emoji: '🥤', label: 'Zumos' },
+          ].map((a) => (
+            <Link key={a.href} href={a.href} style={{ textDecoration: 'none' }}>
+              <div style={{ background: 'var(--surface)', border: '1.5px solid var(--border)', borderRadius: 12, padding: '10px 4px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.3rem' }}>{a.emoji}</div>
+                <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--muted)', marginTop: 2 }}>{a.label}</div>
+              </div>
+            </Link>
+          ))}
         </div>
 
         {/* Calorie ring */}

@@ -3,8 +3,8 @@ import type { ReactNode } from 'react'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'DietBook',
-  description: 'Diario de alimentación y calorías',
+  title: "Daddy's Trainer · Nutrición",
+  description: 'Gestión nutricional y valoración corporal — Coach Pietro',
   manifest: '/manifest.json',
 }
 
@@ -13,7 +13,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: '#22c55e',
+  themeColor: '#f59e0b',
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {

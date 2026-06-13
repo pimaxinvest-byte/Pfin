@@ -1,11 +1,11 @@
 {
-  "name": "DietBook",
-  "short_name": "DietBook",
-  "description": "Diario de alimentación y calorías",
+  "name": "Daddy's Trainer · Nutrición",
+  "short_name": "DaddysTrainer",
+  "description": "Gestión nutricional y valoración corporal — Coach Pietro",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f0fdf4",
-  "theme_color": "#22c55e",
+  "background_color": "#fafafa",
+  "theme_color": "#f59e0b",
   "orientation": "portrait",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
