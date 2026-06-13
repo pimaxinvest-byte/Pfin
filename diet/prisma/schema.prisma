@@ -38,7 +38,9 @@ model User {
 
   profile  UserProfile?
   goals    UserGoals?
-  diaryEntries DiaryEntry[]
+  diaryEntries    DiaryEntry[]
+  nutritionPlan   NutritionPlan?
+  weeklyCheckins  WeeklyCheckin[]
 
   @@map("users")
 }
@@ -109,4 +111,69 @@ model DiaryEntry {
 
   @@index([userId, date])
   @@map("diary_entries")
+}
+
+model NutritionPlan {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Step 1 – Current patterns
+  mealsPerDay     Int?
+  cookingFreq     String?
+  eatingOut       String?
+  snackPattern    String?
+  hydrationLiters Float?
+  problemAreas    String?
+  restrictions    String?
+
+  // Step 2 – Goals
+  primaryGoal     String?
+  secondaryGoal   String?
+  timelineWeeks   Int?
+  previousAttempt String?
+
+  // Step 3 – Approach
+  approach        String  @default("calorie_counting")
+  kcalMin         Int?
+  kcalMax         Int?
+
+  // Step 5 – Obstacles
+  restaurantStrategy  String?
+  alcoholRule         String?
+  travelStrategy      String?
+  lowWillpowerMeal    String?
+  cravingStrategy     String?
+
+  // Step 6 – Shopping
+  shoppingDay   String?
+  prepDay       String?
+
+  // Step 7 – Habits (current week index 0-3)
+  currentWeek   Int     @default(0)
+  week1Habit    String?
+  week2Habit    String?
+  week3Habit    String?
+  week4Habit    String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("nutrition_plans")
+}
+
+model WeeklyCheckin {
+  id        String   @id @default(cuid())
+  userId    String
+  weekDate  String
+  energy    Int?
+  hunger    Int?
+  adherence Int?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekDate])
+  @@map("weekly_checkins")
 }

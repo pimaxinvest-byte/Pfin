@@ -121,9 +121,14 @@ export default async function DashboardPage() {
           })
         )}
 
-        <Link href="/diary/add" style={{ display: 'block', marginTop: 8 }}>
-          <button className="btn btn-ghost" style={{ width: '100%' }}>+ Añadir alimento</button>
-        </Link>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <Link href="/diary/add" style={{ flex: 1 }}>
+            <button className="btn btn-ghost" style={{ width: '100%' }}>+ Añadir alimento</button>
+          </Link>
+          <Link href="/foods" style={{ flex: 1 }}>
+            <button className="btn btn-ghost" style={{ width: '100%' }}>🔍 Buscar</button>
+          </Link>
+        </div>
       </div>
       <BottomNav active="/dashboard" />
     </>

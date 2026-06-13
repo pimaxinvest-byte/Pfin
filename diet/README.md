@@ -5,13 +5,21 @@ App de diario alimenticio mobile-first. Registra comidas, controla calorías y m
 ## Funciones
 
 - Registro diario por comida (desayuno, comida, cena, snack)
-- Anillo de calorías y barras de macros
-- Base de datos de 20+ alimentos verificados
-- Añadir alimentos personalizados
+- Anillo de calorías y barras de macros en tiempo real
+- Base de datos de 20+ alimentos verificados + alimentos personalizados
 - Historial semanal con gráfica de barras
 - Objetivos personalizables (kcal, proteínas, HC, grasas, fibra)
 - Perfil con peso, altura, nivel de actividad y objetivo
-- PWA instalable en Android
+- PWA instalable en Android (manifest + meta tags)
+
+### Plan Nutricional (6 pasos, basado en skill `nutr`)
+
+1. **Patrones actuales** — frecuencia de comidas, cocina, picoteo, hidratación, restricciones
+2. **Objetivo y enfoque** — meta principal, plazo, enfoque (conteo/porciones/calidad/hábitos)
+3. **Marco de comidas** — plantillas por comida con ejemplos reales (no planes rígidos)
+4. **Obstáculos** — restaurantes, alcohol, viajes, bajón de fuerza de voluntad, antojos
+5. **Compra semanal** — lista base y día fijo de preparación
+6. **Hábitos graduales** — un cambio por semana + check-in semanal de energía/hambre/adherencia
 
 ## Variables de entorno
 
