@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Sex {
+  M
+  F
+}
+
 enum MealType {
   breakfast
   lunch
@@ -41,6 +46,7 @@ model User {
   diaryEntries    DiaryEntry[]
   nutritionPlan   NutritionPlan?
   weeklyCheckins  WeeklyCheckin[]
+  assessments     BodyAssessment[]
 
   @@map("users")
 }
@@ -48,6 +54,7 @@ model User {
 model UserProfile {
   id            String        @id @default(cuid())
   userId        String        @unique
+  sex           Sex?
   weightKg      Float?
   heightCm      Float?
   birthYear     Int?
@@ -176,4 +183,42 @@ model WeeklyCheckin {
 
   @@unique([userId, weekDate])
   @@map("weekly_checkins")
+}
+
+model BodyAssessment {
+  id        String   @id @default(cuid())
+  userId    String
+  date      String
+
+  weightKg  Float?
+
+  // Pliegues cutáneos (mm) — protocolo ISAK
+  tricepsMm   Float?   // tricipital
+  subscapMm   Float?   // subescapular
+  abdomMm     Float?   // abdominal
+  suprailMm   Float?   // supraespinal (suprailíaco)
+  thighMm     Float?   // muslo
+
+  // Perímetros (cm)
+  waistCm    Float?   // abdominal (ombligo)
+  hipCm      Float?   // cadera
+  neckCm     Float?   // cuello
+  armCm      Float?   // brazo (bíceps contraído)
+  calfCm     Float?   // pantorrilla
+
+  // Resultados calculados
+  bodyFatPct  Float?   // % grasa (Yuhász)
+  bodyFatJP   Float?   // % grasa (J&P 3 sitios)
+  bodyFatNavy Float?   // % grasa (perímetros US Navy)
+  fatMassKg   Float?
+  leanMassKg  Float?
+  bmr         Int?
+  tdee        Int?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@map("body_assessments")
 }
