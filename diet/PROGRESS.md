@@ -5,16 +5,29 @@
 >
 > ⚡ AL REANUDAR: leer SOLO este archivo. No re-explorar el código.
 
-## ▶ AHORA MISMO (próxima acción)
-✅ Variables puestas en Railway. ✅ Migraciones aplicadas. ✅ App arranca (`✓ Ready`).
-✅ Seed automatizado en `startCommand` (idempotente + `|| true`) → carga sola en cada deploy.
-PENDIENTE USUARIO: generar dominio público (Settings → Networking → Generate Domain)
-y probar login demo: `demo@daddystrainer.com` / `demo1234`.
+## ▶ AHORA MISMO (estado)
+✅ App DESPLEGADA y arrancando en Railway. ✅ Variables OK. ✅ Seed automatizado en startCommand.
+PENDIENTE USUARIO: generar dominio público (Settings → Networking → Generate Domain, puerto 8080).
 
-Nota deploy: Railway despliega desde `main`. Workflow = commit en rama dev → push dev
-→ `git push origin <dev>:main` para disparar redeploy.
-Riesgo a vigilar: `db:seed` usa `tsx` (devDep); si runtime no lo tiene, el guard `|| true`
-deja arrancar la app pero SIN datos. Verificar en deploy log que el seed corrió.
+### Estructura de roles (implementada)
+- **Rol por email** (sin migración): `TRAINER_EMAILS` env o fallback
+  `demo@daddystrainer.com` + `pimaxinvest@gmail.com` (Pietro Anoe).
+- Trainers ven pestaña **Clientes** + **Cuentas activas** (`/users`): lista de TODOS los
+  usuarios registrados con sus datos, objetivos calculados y plan. Ficha en `/users/[id]`.
+- Clientes (resto) solo ven su diario/dashboard/plan; rutas `/clients` y `/users` bloqueadas
+  (requireTrainer → redirect /dashboard).
+
+### Algoritmos / cálculo (implementado)
+- Al guardar Perfil (peso/altura/año/sexo/actividad/objetivo) → auto-calcula kcal+macros
+  (BMR Mifflin → TDEE → rango objetivo) y guarda en UserGoals. (saveProfile en foods.ts)
+- Plan de comidas VARIADO por recetas: `lib/recipes.ts` (50 recetas españolas con kcal+
+  elaboración) + `generateVariedWeekPlan(kcal, goal, seed)` rota por cliente. Se muestra en
+  `/plan` (usuario), `/clients/[id]` y `/users/[id]` (trainer).
+
+Nota deploy: Railway despliega desde `main`. Workflow = commit dev → push dev →
+`git push origin <dev>:main`. Riesgo: `db:seed` usa `tsx` (devDep); guard `|| true`.
+NO puedo consultar la BD de producción desde este entorno (host interno + egress bloqueado):
+la lista de cuentas se ve EN LA APP (/users), no desde aquí.
 
 ## App
 - **Carpeta**: `diet/` (app independiente; coexiste con `gym/` y `gym-v2/` en el repo)
