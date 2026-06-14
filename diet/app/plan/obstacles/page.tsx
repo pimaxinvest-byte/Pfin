@@ -1,11 +1,12 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import Link from 'next/link'
 import { savePlanObstacles } from '@/lib/actions/plan'
 
 export default function ObstaclesPage() {
-  const [state, action, pending] = useActionState(savePlanObstacles, null)
+  const [state, action] = useFormState(savePlanObstacles, null)
 
   return (
     <div className="page-no-nav" style={{ paddingTop: 16 }}>
@@ -98,9 +99,7 @@ export default function ObstaclesPage() {
           </div>
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Guardando…' : 'Guardar estrategias'}
-        </button>
+        <SubmitButton pendingText="Guardando…" className="btn btn-primary">Guardar estrategias</SubmitButton>
         <Link href="/plan/shopping" style={{ display: 'block', textAlign: 'center', marginTop: 12, color: 'var(--muted)', fontSize: '0.85rem' }}>
           Saltar por ahora →
         </Link>

@@ -1,11 +1,12 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import Link from 'next/link'
 import { createClient } from '@/lib/actions/clients'
 
 export default function NewClientPage() {
-  const [state, action, pending] = useActionState(createClient, null)
+  const [state, action] = useFormState(createClient, null)
 
   return (
     <div className="page-no-nav" style={{ paddingTop: 16, paddingBottom: 40 }}>
@@ -164,9 +165,7 @@ export default function NewClientPage() {
           <textarea name="trainerNotes" className="form-input" placeholder="Observaciones, motivación del cliente, historial de dietas…" rows={3} style={{ resize: 'vertical' }} />
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Creando ficha…' : 'Crear ficha de cliente'}
-        </button>
+        <SubmitButton pendingText="Creando ficha…" className="btn btn-primary">Crear ficha de cliente</SubmitButton>
       </form>
     </div>
   )

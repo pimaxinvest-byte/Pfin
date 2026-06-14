@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import Link from 'next/link'
 import { savePlanShopping } from '@/lib/actions/plan'
 
@@ -16,7 +17,7 @@ const SHOPPING_TEMPLATE = {
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
 export default function ShoppingPage() {
-  const [state, action, pending] = useActionState(savePlanShopping, null)
+  const [state, action] = useFormState(savePlanShopping, null)
 
   return (
     <div className="page-no-nav" style={{ paddingTop: 16, paddingBottom: 32 }}>
@@ -63,9 +64,7 @@ export default function ShoppingPage() {
           </div>
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={pending} style={{ marginBottom: 20 }}>
-          {pending ? 'Guardando…' : 'Guardar logística'}
-        </button>
+        <SubmitButton pendingText="Guardando…" className="btn btn-primary" style={{ marginBottom: 20 }}>Guardar logística</SubmitButton>
       </form>
 
       {/* Shopping list template */}

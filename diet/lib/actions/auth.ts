@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { db } from '../db'
 import { createSession, destroySession } from '../auth'
+import type { FormState } from '../form-state'
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -17,7 +18,7 @@ const RegisterSchema = z.object({
   password: z.string().min(6),
 })
 
-export async function login(_prev: unknown, form: FormData) {
+export async function login(_prev: unknown, form: FormData): Promise<FormState> {
   const parsed = LoginSchema.safeParse({
     email: form.get('email'),
     password: form.get('password'),
@@ -34,7 +35,7 @@ export async function login(_prev: unknown, form: FormData) {
   redirect('/dashboard')
 }
 
-export async function register(_prev: unknown, form: FormData) {
+export async function register(_prev: unknown, form: FormData): Promise<FormState> {
   const parsed = RegisterSchema.safeParse({
     name: form.get('name'),
     email: form.get('email'),

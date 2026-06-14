@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { db } from '../db'
 import { requireAuth, todayStr } from '../auth'
+import type { FormState } from '../form-state'
 
 const AddEntrySchema = z.object({
   foodId: z.string().min(1),
@@ -12,7 +13,7 @@ const AddEntrySchema = z.object({
   quantityG: z.coerce.number().positive(),
 })
 
-export async function addDiaryEntry(_prev: unknown, form: FormData) {
+export async function addDiaryEntry(_prev: unknown, form: FormData): Promise<FormState> {
   const session = await requireAuth()
   const parsed = AddEntrySchema.safeParse({
     foodId: form.get('foodId'),
@@ -44,21 +45,4 @@ export async function getDayEntries(userId: string, date: string) {
     include: { food: true },
     orderBy: [{ mealType: 'asc' }, { createdAt: 'asc' }],
   })
-}
-
-export type DayEntry = Awaited<ReturnType<typeof getDayEntries>>[number]
-
-export function computeMacros(entries: DayEntry[]) {
-  return entries.reduce(
-    (acc, e) => {
-      const r = e.quantityG / 100
-      acc.kcal += e.food.kcalPer100g * r
-      acc.protein += e.food.proteinG * r
-      acc.carbs += e.food.carbsG * r
-      acc.fat += e.food.fatG * r
-      acc.fiber += e.food.fiberG * r
-      return acc
-    },
-    { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 }
-  )
 }

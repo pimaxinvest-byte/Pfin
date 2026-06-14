@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import Link from 'next/link'
 import { savePlanHabits, saveCheckin, advanceWeek } from '@/lib/actions/plan'
 
@@ -12,8 +13,8 @@ const DEFAULT_HABITS = [
 ]
 
 export default function HabitsPage() {
-  const [habitsState, habitsAction, habitsPending] = useActionState(savePlanHabits, null)
-  const [checkinState, checkinAction, checkinPending] = useActionState(saveCheckin, null)
+  const [habitsState, habitsAction] = useFormState(savePlanHabits, null)
+  const [checkinState, checkinAction] = useFormState(saveCheckin, null)
 
   return (
     <div className="page-no-nav" style={{ paddingTop: 16, paddingBottom: 32 }}>
@@ -60,9 +61,7 @@ export default function HabitsPage() {
           ))}
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={habitsPending} style={{ marginBottom: 20 }}>
-          {habitsPending ? 'Guardando…' : 'Guardar plan de hábitos'}
-        </button>
+        <SubmitButton pendingText="Guardando…" className="btn btn-primary" style={{ marginBottom: 20 }}>Guardar plan de hábitos</SubmitButton>
       </form>
 
       {/* Weekly check-in */}
@@ -96,9 +95,7 @@ export default function HabitsPage() {
             <label className="form-label">Notas (opcional)</label>
             <input type="text" name="notes" className="form-input" placeholder="¿Qué funcionó? ¿Qué fue difícil?" />
           </div>
-          <button type="submit" className="btn btn-ghost" style={{ width: '100%' }} disabled={checkinPending}>
-            {checkinPending ? 'Guardando…' : 'Registrar check-in de esta semana'}
-          </button>
+          <SubmitButton pendingText="Guardando…" className="btn btn-ghost" style={{ width: '100%' }}>Registrar check-in de esta semana</SubmitButton>
         </form>
       </div>
 

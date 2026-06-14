@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { requireAuth } from '@/lib/auth'
-import { getDayEntries, computeMacros, deleteDiaryEntry } from '@/lib/actions/diary'
+import { getDayEntries, deleteDiaryEntry } from '@/lib/actions/diary'
+import { computeMacros } from '@/lib/diary-utils'
 import { getUserWithGoals } from '@/lib/auth'
 import BottomNav from '@/components/BottomNav'
 

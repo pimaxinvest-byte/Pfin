@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { db } from '../db'
 import { requireAuth } from '../auth'
+import type { FormState } from '../form-state'
 
 const FoodSchema = z.object({
   name: z.string().min(2).max(100),
@@ -16,7 +17,7 @@ const FoodSchema = z.object({
   servingG: z.coerce.number().min(1).default(100),
 })
 
-export async function createFood(_prev: unknown, form: FormData) {
+export async function createFood(_prev: unknown, form: FormData): Promise<FormState> {
   await requireAuth()
   const parsed = FoodSchema.safeParse(Object.fromEntries(form))
   if (!parsed.success) return { error: parsed.error.errors[0].message }
@@ -45,7 +46,7 @@ const GoalsSchema = z.object({
   fiberG: z.coerce.number().min(0),
 })
 
-export async function saveGoals(_prev: unknown, form: FormData) {
+export async function saveGoals(_prev: unknown, form: FormData): Promise<FormState> {
   const session = await requireAuth()
   const parsed = GoalsSchema.safeParse(Object.fromEntries(form))
   if (!parsed.success) return { error: parsed.error.errors[0].message }
@@ -67,7 +68,7 @@ const ProfileSchema = z.object({
   goal: z.enum(['lose', 'maintain', 'gain']),
 })
 
-export async function saveProfile(_prev: unknown, form: FormData) {
+export async function saveProfile(_prev: unknown, form: FormData): Promise<FormState> {
   const session = await requireAuth()
   const parsed = ProfileSchema.safeParse(Object.fromEntries(form))
   if (!parsed.success) return { error: parsed.error.errors[0].message }

@@ -1,6 +1,6 @@
 import { requireAuth, getUserWithGoals } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { computeMacros } from '@/lib/actions/diary'
+import { computeMacros } from '@/lib/diary-utils'
 import BottomNav from '@/components/BottomNav'
 
 const DAY_NAMES = ['D', 'L', 'M', 'X', 'J', 'V', 'S']

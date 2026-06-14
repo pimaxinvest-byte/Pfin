@@ -1,6 +1,8 @@
 'use client'
 
-import { useActionState, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { saveClientAssessment } from '@/lib/actions/clients'
@@ -10,7 +12,7 @@ import type { Sex } from '@/lib/nutrition'
 export default function ClientAssessmentPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const [state, action, pending] = useActionState(saveClientAssessment, null)
+  const [state, action] = useFormState(saveClientAssessment, null)
   const [sex, setSex] = useState<Sex>('M')
   const [vals, setVals] = useState<Record<string, string>>({})
 
@@ -153,9 +155,7 @@ export default function ClientAssessmentPage() {
 
         {state?.error && <div className="alert alert-error">{state.error}</div>}
 
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Calculando…' : 'Guardar valoración'}
-        </button>
+        <SubmitButton pendingText="Calculando…" className="btn btn-primary">Guardar valoración</SubmitButton>
         <div style={{ fontSize: '0.75rem', color: 'var(--muted)', textAlign: 'center', marginTop: 10 }}>
           Se calculan: % grasa (Yuhász + JP3 + Navy), BMI, BMR, TDEE, TDEE ajustado por categoría, macros óptimas.
         </div>

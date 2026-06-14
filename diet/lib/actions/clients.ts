@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { db } from '../db'
 import { requireAuth } from '../auth'
+import type { FormState } from '../form-state'
 import {
   calcBMR, calcTDEE, calcTDEEEnhanced, goalKcalRange, macroTargets,
   bodyFatYuhasz, bodyFatJP3, bodyFatNavy,
@@ -42,7 +43,7 @@ function clean(v: string | undefined | null) {
   return v.trim()
 }
 
-export async function createClient(_prev: unknown, form: FormData) {
+export async function createClient(_prev: unknown, form: FormData): Promise<FormState> {
   const session = await requireAuth()
   const raw = Object.fromEntries(form)
   raw.isEnhanced = form.get('isEnhanced') === 'on' ? 'true' : 'false'
@@ -77,7 +78,7 @@ export async function createClient(_prev: unknown, form: FormData) {
   redirect(`/clients/${client.id}`)
 }
 
-export async function updateClient(_prev: unknown, form: FormData) {
+export async function updateClient(_prev: unknown, form: FormData): Promise<FormState> {
   const session = await requireAuth()
   const id = form.get('id') as string
   const existing = await db.client.findFirst({ where: { id, trainerId: session.id } })
@@ -121,7 +122,7 @@ export async function deleteClient(id: string) {
   redirect('/clients')
 }
 
-export async function saveClientAssessment(_prev: unknown, form: FormData) {
+export async function saveClientAssessment(_prev: unknown, form: FormData): Promise<FormState> {
   const session = await requireAuth()
   const clientId = form.get('clientId') as string
   const client = await db.client.findFirst({ where: { id: clientId, trainerId: session.id } })
@@ -205,5 +206,5 @@ export async function saveClientAssessment(_prev: unknown, form: FormData) {
   await db.client.update({ where: { id: clientId }, data: { weightKg, updatedAt: new Date() } })
 
   revalidatePath(`/clients/${clientId}`)
-  return { success: true, bodyFatPct, bmr, tdee, targetKcal, leanMassKg }
+  return { success: true }
 }

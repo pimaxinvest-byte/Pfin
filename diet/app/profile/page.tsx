@@ -1,6 +1,8 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useState } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 import { saveGoals, saveProfile } from '@/lib/actions/foods'
@@ -24,8 +26,8 @@ type TabType = 'goals' | 'profile' | 'account'
 
 export default function ProfilePage() {
   const [tab, setTab] = useState<TabType>('goals')
-  const [goalsState, goalsAction, goalsPending] = useActionState(saveGoals, null)
-  const [profileState, profileAction, profilePending] = useActionState(saveProfile, null)
+  const [goalsState, goalsAction] = useFormState(saveGoals, null)
+  const [profileState, profileAction] = useFormState(saveProfile, null)
 
   return (
     <>
@@ -72,9 +74,7 @@ export default function ProfilePage() {
                   <input type="number" name="fiberG" className="form-input" defaultValue={30} min={0} step={1} />
                 </div>
               </div>
-              <button type="submit" className="btn btn-primary" disabled={goalsPending}>
-                {goalsPending ? 'Guardando…' : 'Guardar objetivos'}
-              </button>
+              <SubmitButton pendingText="Guardando…" className="btn btn-primary">Guardar objetivos</SubmitButton>
             </form>
           </div>
         )}
@@ -115,9 +115,7 @@ export default function ProfilePage() {
                   ))}
                 </select>
               </div>
-              <button type="submit" className="btn btn-primary" disabled={profilePending}>
-                {profilePending ? 'Guardando…' : 'Guardar datos'}
-              </button>
+              <SubmitButton pendingText="Guardando…" className="btn btn-primary">Guardar datos</SubmitButton>
             </form>
           </div>
         )}

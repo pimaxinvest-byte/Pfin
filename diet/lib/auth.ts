@@ -44,7 +44,7 @@ export async function requireAuth(): Promise<SessionUser> {
     const { redirect } = await import('next/navigation')
     redirect('/login')
   }
-  return session
+  return session!
 }
 
 export async function getUserWithGoals(userId: string) {

@@ -1,13 +1,14 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createFood } from '@/lib/actions/foods'
 
 export default function AddFoodPage() {
   const router = useRouter()
-  const [state, action, pending] = useActionState(createFood, null)
+  const [state, action] = useFormState(createFood, null)
 
   if (state?.success) {
     router.push('/foods')
@@ -69,9 +70,7 @@ export default function AddFoodPage() {
           <input type="number" name="servingG" className="form-input" placeholder="100" min="1" defaultValue="100" />
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Guardando…' : 'Guardar alimento'}
-        </button>
+        <SubmitButton pendingText="Guardando…" className="btn btn-primary">Guardar alimento</SubmitButton>
       </form>
     </div>
   )

@@ -1,6 +1,8 @@
 'use client'
 
-import { useActionState, useState, useCallback } from 'react'
+import { useState, useCallback, Suspense } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { addDiaryEntry } from '@/lib/actions/diary'
@@ -17,14 +19,22 @@ type Source = 'local' | 'usda'
 type FoodItem = FoodResult & { source?: Source }
 
 type SafetyData = {
-  recalls: { number: string; reason: string; classification: string; status: string; date: string }[]
+  recalls: { number: string; reason: string; classification: string; status: string; date: string; firm: string }[]
   events: { reactions: string[]; outcomes: unknown }[]
 } | null
 
 export default function AddDiaryEntryPage() {
+  return (
+    <Suspense fallback={<div className="page-no-nav" style={{ padding: 24 }}>Cargando…</div>}>
+      <AddDiaryEntryInner />
+    </Suspense>
+  )
+}
+
+function AddDiaryEntryInner() {
   const params = useSearchParams()
   const router = useRouter()
-  const [state, action, pending] = useActionState(addDiaryEntry, null)
+  const [state, action] = useFormState(addDiaryEntry, null)
   const [q, setQ] = useState('')
   const [localResults, setLocalResults] = useState<FoodItem[]>([])
   const [usdaResults, setUsdaResults] = useState<FoodItem[]>([])
@@ -202,9 +212,7 @@ export default function AddDiaryEntryPage() {
               </select>
             </div>
 
-            <button type="submit" className="btn btn-primary" disabled={pending}>
-              {pending ? 'Añadiendo…' : 'Añadir al diario'}
-            </button>
+            <SubmitButton pendingText="Añadiendo…" className="btn btn-primary">Añadir al diario</SubmitButton>
           </form>
 
           {/* FDA Safety Check */}

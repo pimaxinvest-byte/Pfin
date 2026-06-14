@@ -1,11 +1,12 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import Link from 'next/link'
 import { register } from '@/lib/actions/auth'
 
 export default function RegisterPage() {
-  const [state, action, pending] = useActionState(register, null)
+  const [state, action] = useFormState(register, null)
 
   return (
     <div className="page-no-nav">
@@ -51,9 +52,7 @@ export default function RegisterPage() {
               required
             />
           </div>
-          <button type="submit" className="btn btn-primary" disabled={pending}>
-            {pending ? 'Creando cuenta…' : 'Crear cuenta'}
-          </button>
+          <SubmitButton pendingText="Creando cuenta…" className="btn btn-primary">Crear cuenta</SubmitButton>
         </form>
 
         <div className="auth-footer">

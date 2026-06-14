@@ -1,11 +1,12 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import Link from 'next/link'
 import { login } from '@/lib/actions/auth'
 
 export default function LoginPage() {
-  const [state, action, pending] = useActionState(login, null)
+  const [state, action] = useFormState(login, null)
 
   return (
     <div className="page-no-nav">
@@ -39,9 +40,7 @@ export default function LoginPage() {
               required
             />
           </div>
-          <button type="submit" className="btn btn-primary" disabled={pending}>
-            {pending ? 'Entrando…' : 'Entrar'}
-          </button>
+          <SubmitButton pendingText="Entrando…" className="btn btn-primary">Entrar</SubmitButton>
         </form>
 
         <div className="auth-footer">

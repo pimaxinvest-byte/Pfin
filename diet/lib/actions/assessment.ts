@@ -6,7 +6,11 @@ import { requireAuth } from '../auth'
 import { calcBMR, calcTDEE, bodyFatYuhasz, bodyFatJP3, bodyFatNavy, goalKcalRange, macroTargets } from '../nutrition'
 import type { Sex } from '../nutrition'
 
-export async function saveAssessment(_prev: unknown, form: FormData) {
+export type AssessmentResult =
+  | { success: true; error?: undefined; bodyFatPct: number | null; bodyFatJP: number | null; bodyFatNavyPct: number | null; bmr: number; tdee: number; fatMassKg: number | null; leanMassKg: number | null }
+  | { success?: false; error: string }
+
+export async function saveAssessment(_prev: unknown, form: FormData): Promise<AssessmentResult> {
   const session = await requireAuth()
 
   const profile = await db.userProfile.findUnique({ where: { userId: session.id } })

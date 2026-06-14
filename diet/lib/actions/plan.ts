@@ -3,12 +3,13 @@
 import { revalidatePath } from 'next/cache'
 import { db } from '../db'
 import { requireAuth } from '../auth'
+import type { FormState } from '../form-state'
 
 export async function getUserPlan(userId: string) {
   return db.nutritionPlan.findUnique({ where: { userId } })
 }
 
-export async function savePlanPatterns(_prev: unknown, form: FormData) {
+export async function savePlanPatterns(_prev: unknown, form: FormData): Promise<FormState> {
   const session = await requireAuth()
   const data = {
     mealsPerDay: form.get('mealsPerDay') ? Number(form.get('mealsPerDay')) : null,
@@ -28,7 +29,7 @@ export async function savePlanPatterns(_prev: unknown, form: FormData) {
   return { success: true }
 }
 
-export async function savePlanGoals(_prev: unknown, form: FormData) {
+export async function savePlanGoals(_prev: unknown, form: FormData): Promise<FormState> {
   const session = await requireAuth()
   const weightKg = await db.userProfile.findUnique({ where: { userId: session.id } }).then(p => p?.weightKg ?? 75)
 
@@ -58,7 +59,7 @@ export async function savePlanGoals(_prev: unknown, form: FormData) {
   return { success: true }
 }
 
-export async function savePlanObstacles(_prev: unknown, form: FormData) {
+export async function savePlanObstacles(_prev: unknown, form: FormData): Promise<FormState> {
   const session = await requireAuth()
   await db.nutritionPlan.upsert({
     where: { userId: session.id },
@@ -82,7 +83,7 @@ export async function savePlanObstacles(_prev: unknown, form: FormData) {
   return { success: true }
 }
 
-export async function savePlanShopping(_prev: unknown, form: FormData) {
+export async function savePlanShopping(_prev: unknown, form: FormData): Promise<FormState> {
   const session = await requireAuth()
   await db.nutritionPlan.upsert({
     where: { userId: session.id },
@@ -100,7 +101,7 @@ export async function savePlanShopping(_prev: unknown, form: FormData) {
   return { success: true }
 }
 
-export async function savePlanHabits(_prev: unknown, form: FormData) {
+export async function savePlanHabits(_prev: unknown, form: FormData): Promise<FormState> {
   const session = await requireAuth()
   await db.nutritionPlan.upsert({
     where: { userId: session.id },
@@ -133,7 +134,7 @@ export async function advanceWeek() {
   revalidatePath('/plan')
 }
 
-export async function saveCheckin(_prev: unknown, form: FormData) {
+export async function saveCheckin(_prev: unknown, form: FormData): Promise<FormState> {
   const session = await requireAuth()
   const weekDate = new Date().toISOString().slice(0, 10).slice(0, 7) + '-01'
   await db.weeklyCheckin.upsert({

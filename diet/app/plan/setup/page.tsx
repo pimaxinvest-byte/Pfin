@@ -1,11 +1,12 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import Link from 'next/link'
 import { savePlanPatterns } from '@/lib/actions/plan'
 
 export default function PlanSetupPage() {
-  const [state, action, pending] = useActionState(savePlanPatterns, null)
+  const [state, action] = useFormState(savePlanPatterns, null)
 
   return (
     <div className="page-no-nav" style={{ paddingTop: 16 }}>
@@ -115,9 +116,7 @@ export default function PlanSetupPage() {
           </div>
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Guardando…' : 'Guardar y continuar'}
-        </button>
+        <SubmitButton pendingText="Guardando…" className="btn btn-primary">Guardar y continuar</SubmitButton>
         <Link href="/plan/goals" style={{ display: 'block', textAlign: 'center', marginTop: 12, color: 'var(--muted)', fontSize: '0.85rem' }}>
           Saltar por ahora →
         </Link>

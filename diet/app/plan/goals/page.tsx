@@ -1,11 +1,12 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import Link from 'next/link'
 import { savePlanGoals } from '@/lib/actions/plan'
 
 export default function PlanGoalsPage() {
-  const [state, action, pending] = useActionState(savePlanGoals, null)
+  const [state, action] = useFormState(savePlanGoals, null)
 
   return (
     <div className="page-no-nav" style={{ paddingTop: 16 }}>
@@ -96,9 +97,7 @@ export default function PlanGoalsPage() {
           ))}
         </div>
 
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Calculando…' : 'Guardar y calcular rango calórico'}
-        </button>
+        <SubmitButton pendingText="Calculando…" className="btn btn-primary">Guardar y calcular rango calórico</SubmitButton>
         <Link href="/plan/framework" style={{ display: 'block', textAlign: 'center', marginTop: 12, color: 'var(--muted)', fontSize: '0.85rem' }}>
           Saltar por ahora →
         </Link>

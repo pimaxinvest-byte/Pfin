@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { requireAuth, getUserWithGoals, todayStr } from '@/lib/auth'
-import { getDayEntries, computeMacros } from '@/lib/actions/diary'
+import { getDayEntries } from '@/lib/actions/diary'
+import { computeMacros } from '@/lib/diary-utils'
 import BottomNav from '@/components/BottomNav'
 import MacroBars from '@/components/MacroBars'
 

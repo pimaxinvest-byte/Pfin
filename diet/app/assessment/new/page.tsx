@@ -1,6 +1,8 @@
 'use client'
 
-import { useActionState, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
+import { useFormState } from 'react-dom'
+import SubmitButton from '@/components/SubmitButton'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { saveAssessment } from '@/lib/actions/assessment'
@@ -38,7 +40,7 @@ function calcPreview(form: Record<string, string>, sex: Sex): Preview {
 
 export default function NewAssessmentPage() {
   const router = useRouter()
-  const [state, action, pending] = useActionState(saveAssessment, null)
+  const [state, action] = useFormState(saveAssessment, null)
   const [sex, setSex] = useState<Sex>('M')
   const [vals, setVals] = useState<Record<string, string>>({})
   const preview = calcPreview(vals, sex)
@@ -201,9 +203,7 @@ export default function NewAssessmentPage() {
 
         {state?.error && <div className="alert alert-error">{state.error}</div>}
 
-        <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? 'Calculando y guardando…' : 'Guardar valoración'}
-        </button>
+        <SubmitButton pendingText="Calculando y guardando…" className="btn btn-primary">Guardar valoración</SubmitButton>
         <div style={{ fontSize: '0.75rem', color: 'var(--muted)', textAlign: 'center', marginTop: 10 }}>
           Los objetivos de kcal y macros se actualizarán automáticamente según tu TDEE.
         </div>
