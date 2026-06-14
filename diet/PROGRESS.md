@@ -23,9 +23,17 @@
 - Seed: 65 alimentos españoles/andaluces (pescado primero)
 
 ## DESPLIEGUE (en curso) — Railway proyecto `adequate-purpose`
-Estado: build en Railway. Fixes aplicados:
+Estado: build local VERDE. Fixes aplicados:
 1. ✅ `railway.json` builder NIXPACKS → **RAILPACK** (NIXPACKS deprecado)
 2. ✅ Next.js 14.2.23 → **14.2.35** (CVE-2025-55184, CVE-2025-67779)
+3. ✅ React 19 `useActionState` → React 18 `useFormState` + `SubmitButton` (useFormStatus) en 13 páginas
+4. ✅ `computeMacros`/`DayEntry` movidos fuera de archivo `'use server'` → `lib/diary-utils.ts`
+5. ✅ Tipo compartido `FormState` + anotación de retorno en todas las server actions
+6. ✅ Fix narrowing `requireAuth`, tipo `firm` en recalls FDA, tipo `AssessmentResult`
+7. ✅ eslint 9 → 8.57.1 (conflicto peer con eslint-config-next)
+8. ✅ `/diary/add` `useSearchParams` envuelto en Suspense
+9. ✅ Añadido `diet/.gitignore` + `package-lock.json` commiteado (build reproducible)
+> `npm run build` pasa al 100% (29 páginas). Pusheado a `main` → Railway redeploy.
 
 ### Pendiente para que la app funcione tras el deploy:
 - [ ] Build verde en Railway
