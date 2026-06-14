@@ -54,5 +54,22 @@ Estado: build local VERDE. Fixes aplicados:
 - Railway CLI / API bloqueados por egress de red desde el entorno cloud → deploy se gestiona desde la UI de Railway o GitHub Actions.
 - `startCommand`: `npx prisma migrate deploy && npm start`
 
+## Revisión con 3 agentes (2026-06-14) — IMPLEMENTADO
+- **Seguridad:** cookie de sesión firmada con HMAC (SESSION_SECRET); IDOR cerrado (read actions derivan userId/trainerId de la sesión).
+- **Corrección:** sexo obligatorio (no asumir 'M'); validación de food en diario; guard NaN en Navy; macros coherentes (suelo de grasa 15%); try/catch en escrituras.
+- **UX:** color de acción → oro de marca (texto negro, WCAG AA); PWA instalable (iconos 192/512/maskable + apple-touch-icon); login/register con marca Daddy's Trainer; zoom accesible; theme negro.
+- **CI:** `.eslintrc.json` + `.env.example`.
+- Fórmulas de nutrición verificadas correctas por el agente de testing.
+
+## DEPLOY — estado actual (2026-06-14 09:06)
+- ✅ Build de Railway PASA.
+- ❌ Contenedor en bucle de reinicio: **falta `DATABASE_URL`** (P1012) y **falta `SESSION_SECRET`**.
+- ACCIÓN PENDIENTE DEL USUARIO en Railway (servicio de la app, pestaña Variables):
+  - `DATABASE_URL = ${{Postgres.DATABASE_URL}}`  (referencia al servicio Postgres)
+  - `SESSION_SECRET = <openssl rand -base64 32>`
+  - `NODE_ENV = production`
+- Tras arrancar: `npm run db:seed` para cargar 65 alimentos + usuario demo.
+
 ## Próximo paso
-Confirmar build verde en Railway con Next 14.2.35; luego verificar variables y correr seed.
+Usuario añade DATABASE_URL + SESSION_SECRET en Railway → contenedor arranca → seed.
+Pendiente opcional (no bloquea): tests unitarios de lib/nutrition.ts, loading.tsx/toasts, colapsar ficha cliente, reordenar BottomNav.
