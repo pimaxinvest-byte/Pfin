@@ -14,7 +14,8 @@ export async function saveAssessment(_prev: unknown, form: FormData): Promise<As
   const session = await requireAuth()
 
   const profile = await db.userProfile.findUnique({ where: { userId: session.id } })
-  const sex = (profile?.sex ?? 'M') as Sex
+  const formSex = form.get('sex')
+  const sex = ((formSex === 'M' || formSex === 'F') ? formSex : profile?.sex ?? 'M') as Sex
   const weightKg = parseFloat(form.get('weightKg') as string) || profile?.weightKg || 75
   const heightCm = profile?.heightCm || 175
   const age = profile?.birthYear ? new Date().getFullYear() - profile.birthYear : 30
@@ -51,7 +52,8 @@ export async function saveAssessment(_prev: unknown, form: FormData): Promise<As
   }
 
   if (waist != null && neck != null) {
-    bodyFatNavyPct = parseFloat(bodyFatNavy(waist, hip, neck, heightCm, sex).toFixed(1))
+    const navy = bodyFatNavy(waist, hip, neck, heightCm, sex)
+    bodyFatNavyPct = isNaN(navy) ? null : parseFloat(navy.toFixed(1))
   }
 
   const primaryBF = bodyFatPct ?? bodyFatNavyPct
@@ -100,11 +102,11 @@ export async function saveAssessment(_prev: unknown, form: FormData): Promise<As
     })
   }
 
-  // Update profile weight
+  // Update profile weight + persist sex so future calculations stay accurate
   await db.userProfile.upsert({
     where: { userId: session.id },
-    update: { weightKg },
-    create: { userId: session.id, weightKg },
+    update: { weightKg, sex },
+    create: { userId: session.id, weightKg, sex },
   })
 
   revalidatePath('/assessment')
@@ -113,9 +115,10 @@ export async function saveAssessment(_prev: unknown, form: FormData): Promise<As
   return { success: true, bodyFatPct, bodyFatJP, bodyFatNavyPct, bmr, tdee, fatMassKg, leanMassKg }
 }
 
-export async function getAssessments(userId: string) {
+export async function getAssessments() {
+  const session = await requireAuth()
   return db.bodyAssessment.findMany({
-    where: { userId },
+    where: { userId: session.id },
     orderBy: { date: 'desc' },
     take: 20,
   })

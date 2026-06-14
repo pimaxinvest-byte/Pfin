@@ -16,7 +16,7 @@ export default async function DashboardPage() {
   const session = await requireAuth()
   const user = await getUserWithGoals(session.id)
   const today = todayStr()
-  const entries = await getDayEntries(session.id, today)
+  const entries = await getDayEntries(today)
   const macros = computeMacros(entries)
   const goals = user?.goals ?? { kcal: 2000, proteinG: 150, carbsG: 250, fatG: 67, fiberG: 30 }
 

@@ -19,8 +19,8 @@ function Ring({ pct, color }: { pct: number; color: string }) {
 }
 
 export default async function AssessmentPage() {
-  const session = await requireAuth()
-  const list = await getAssessments(session.id)
+  await requireAuth()
+  const list = await getAssessments()
 
   return (
     <>

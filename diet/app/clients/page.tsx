@@ -14,8 +14,8 @@ const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
 }
 
 export default async function ClientsPage() {
-  const session = await requireAuth()
-  const clients = await getClients(session.id)
+  await requireAuth()
+  const clients = await getClients()
 
   return (
     <>

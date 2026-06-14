@@ -55,25 +55,30 @@ export async function createClient(_prev: unknown, form: FormData): Promise<Form
   const { email, phone, birthDate, occupation, city, secondaryGoal, competitionDate,
     enhancedProtocol, medicalHistory, foodAllergies, injuries, medications, trainerNotes, ...rest } = parsed.data
 
-  const client = await db.client.create({
-    data: {
-      trainerId: session.id,
-      email: clean(email),
-      phone: clean(phone),
-      birthDate: clean(birthDate),
-      occupation: clean(occupation),
-      city: clean(city),
-      secondaryGoal: clean(secondaryGoal),
-      competitionDate: clean(competitionDate),
-      enhancedProtocol: clean(enhancedProtocol),
-      medicalHistory: clean(medicalHistory),
-      foodAllergies: clean(foodAllergies),
-      injuries: clean(injuries),
-      medications: clean(medications),
-      trainerNotes: clean(trainerNotes),
-      ...rest,
-    },
-  })
+  let client
+  try {
+    client = await db.client.create({
+      data: {
+        trainerId: session.id,
+        email: clean(email),
+        phone: clean(phone),
+        birthDate: clean(birthDate),
+        occupation: clean(occupation),
+        city: clean(city),
+        secondaryGoal: clean(secondaryGoal),
+        competitionDate: clean(competitionDate),
+        enhancedProtocol: clean(enhancedProtocol),
+        medicalHistory: clean(medicalHistory),
+        foodAllergies: clean(foodAllergies),
+        injuries: clean(injuries),
+        medications: clean(medications),
+        trainerNotes: clean(trainerNotes),
+        ...rest,
+      },
+    })
+  } catch {
+    return { error: 'No se pudo crear la ficha. Inténtalo de nuevo.' }
+  }
 
   redirect(`/clients/${client.id}`)
 }
@@ -100,17 +105,19 @@ export async function updateClient(_prev: unknown, form: FormData): Promise<Form
   return { success: true }
 }
 
-export async function getClients(trainerId: string) {
+export async function getClients() {
+  const session = await requireAuth()
   return db.client.findMany({
-    where: { trainerId, isActive: true },
+    where: { trainerId: session.id, isActive: true },
     orderBy: { createdAt: 'desc' },
     include: { assessments: { orderBy: { date: 'desc' }, take: 1 } },
   })
 }
 
-export async function getClient(id: string, trainerId: string) {
+export async function getClient(id: string) {
+  const session = await requireAuth()
   return db.client.findFirst({
-    where: { id, trainerId },
+    where: { id, trainerId: session.id },
     include: { assessments: { orderBy: { date: 'desc' }, take: 10 } },
   })
 }
@@ -150,7 +157,8 @@ export async function saveClientAssessment(_prev: unknown, form: FormData): Prom
       : parseFloat(bodyFatJP3(tri, sup, thi, age, sex).toFixed(1))
   }
   if (waist != null && neck != null) {
-    bodyFatNavyPct = parseFloat(bodyFatNavy(waist, hip, neck, heightCm, sex).toFixed(1))
+    const navy = bodyFatNavy(waist, hip, neck, heightCm, sex)
+    bodyFatNavyPct = isNaN(navy) ? null : parseFloat(navy.toFixed(1))
   }
 
   const primaryBF = bodyFatPct ?? bodyFatNavyPct
@@ -169,41 +177,45 @@ export async function saveClientAssessment(_prev: unknown, form: FormData): Prom
   const targetKcal = Math.round((kcalRange.min + kcalRange.max) / 2)
   const macros = leanMassKg ? macroTargets(targetKcal, leanMassKg, goal, category) : null
 
-  await db.clientAssessment.create({
-    data: {
-      clientId,
-      date: (form.get('date') as string) || new Date().toISOString().slice(0, 10),
-      weightKg,
-      tricepsMm: tri,
-      subscapMm: sub,
-      abdomMm: abd,
-      suprailMm: sup,
-      thighMm: thi,
-      waistCm: waist,
-      hipCm: hip,
-      neckCm: neck,
-      armCm: f('armCm'),
-      calfCm: f('calfCm'),
-      chestCm: f('chestCm'),
-      thighCm: f('thighCm'),
-      bodyFatPct,
-      bodyFatJP,
-      bodyFatNavy: bodyFatNavyPct,
-      fatMassKg,
-      leanMassKg,
-      bmi,
-      bmr,
-      tdee,
-      targetKcal,
-      proteinG: macros?.proteinG ?? null,
-      carbsG: macros?.carbsG ?? null,
-      fatG: macros?.fatG ?? null,
-      notes: form.get('notes') as string || null,
-    },
-  })
+  try {
+    await db.clientAssessment.create({
+      data: {
+        clientId,
+        date: (form.get('date') as string) || new Date().toISOString().slice(0, 10),
+        weightKg,
+        tricepsMm: tri,
+        subscapMm: sub,
+        abdomMm: abd,
+        suprailMm: sup,
+        thighMm: thi,
+        waistCm: waist,
+        hipCm: hip,
+        neckCm: neck,
+        armCm: f('armCm'),
+        calfCm: f('calfCm'),
+        chestCm: f('chestCm'),
+        thighCm: f('thighCm'),
+        bodyFatPct,
+        bodyFatJP,
+        bodyFatNavy: bodyFatNavyPct,
+        fatMassKg,
+        leanMassKg,
+        bmi,
+        bmr,
+        tdee,
+        targetKcal,
+        proteinG: macros?.proteinG ?? null,
+        carbsG: macros?.carbsG ?? null,
+        fatG: macros?.fatG ?? null,
+        notes: form.get('notes') as string || null,
+      },
+    })
 
-  // Update client current weight
-  await db.client.update({ where: { id: clientId }, data: { weightKg, updatedAt: new Date() } })
+    // Update client current weight
+    await db.client.update({ where: { id: clientId }, data: { weightKg, updatedAt: new Date() } })
+  } catch {
+    return { error: 'No se pudo guardar la valoración. Inténtalo de nuevo.' }
+  }
 
   revalidatePath(`/clients/${clientId}`)
   return { success: true }

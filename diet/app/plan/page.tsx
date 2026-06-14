@@ -26,7 +26,7 @@ function completionOf(plan: Awaited<ReturnType<typeof getUserPlan>>) {
 
 export default async function PlanPage() {
   const session = await requireAuth()
-  const plan = await getUserPlan(session.id)
+  const plan = await getUserPlan()
   const user = await getUserWithGoals(session.id)
   const goals = user?.goals
   const done = completionOf(plan)

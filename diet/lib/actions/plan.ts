@@ -5,8 +5,9 @@ import { db } from '../db'
 import { requireAuth } from '../auth'
 import type { FormState } from '../form-state'
 
-export async function getUserPlan(userId: string) {
-  return db.nutritionPlan.findUnique({ where: { userId } })
+export async function getUserPlan() {
+  const session = await requireAuth()
+  return db.nutritionPlan.findUnique({ where: { userId: session.id } })
 }
 
 export async function savePlanPatterns(_prev: unknown, form: FormData): Promise<FormState> {

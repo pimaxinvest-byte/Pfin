@@ -32,7 +32,7 @@ export default async function DiaryPage({
   const session = await requireAuth()
   const params = await searchParams
   const date = params.date ?? new Date().toISOString().slice(0, 10)
-  const entries = await getDayEntries(session.id, date)
+  const entries = await getDayEntries(date)
   const macros = computeMacros(entries)
   const user = await getUserWithGoals(session.id)
   const goals = user?.goals ?? { kcal: 2000, proteinG: 150, carbsG: 250, fatG: 67, fiberG: 30 }

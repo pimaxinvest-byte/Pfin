@@ -23,9 +23,16 @@ export async function addDiaryEntry(_prev: unknown, form: FormData): Promise<For
   })
   if (!parsed.success) return { error: 'Datos inválidos' }
 
-  await db.diaryEntry.create({
-    data: { userId: session.id, ...parsed.data },
-  })
+  const food = await db.food.findUnique({ where: { id: parsed.data.foodId } })
+  if (!food) return { error: 'Alimento no encontrado. Guárdalo antes de añadirlo al diario.' }
+
+  try {
+    await db.diaryEntry.create({
+      data: { userId: session.id, ...parsed.data },
+    })
+  } catch {
+    return { error: 'No se pudo guardar la entrada. Inténtalo de nuevo.' }
+  }
 
   revalidatePath('/diary')
   revalidatePath('/dashboard')
@@ -39,9 +46,10 @@ export async function deleteDiaryEntry(id: string) {
   revalidatePath('/dashboard')
 }
 
-export async function getDayEntries(userId: string, date: string) {
+export async function getDayEntries(date: string) {
+  const session = await requireAuth()
   return db.diaryEntry.findMany({
-    where: { userId, date },
+    where: { userId: session.id, date },
     include: { food: true },
     orderBy: [{ mealType: 'asc' }, { createdAt: 'asc' }],
   })

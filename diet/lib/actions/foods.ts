@@ -61,6 +61,7 @@ export async function saveGoals(_prev: unknown, form: FormData): Promise<FormSta
 }
 
 const ProfileSchema = z.object({
+  sex: z.enum(['M', 'F']),
   weightKg: z.coerce.number().min(20).max(500).optional(),
   heightCm: z.coerce.number().min(100).max(300).optional(),
   birthYear: z.coerce.number().min(1920).max(2010).optional(),

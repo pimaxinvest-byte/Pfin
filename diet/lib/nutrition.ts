@@ -60,8 +60,14 @@ export function macroTargets(kcal: number, leanMassKg: number, goal: string, cat
   }
   const proteinG = Math.round(leanMassKg * (proteinPerKg[category] ?? 1.8))
   const proteinKcal = proteinG * 4
-  // Fat: 25% of kcal
-  const fatG = Math.round((kcal * 0.25) / 9)
+  // Fat: 25% of kcal, but never let protein + fat exceed the calorie budget.
+  // In aggressive cuts with very high protein (enhanced), drop fat toward a
+  // 15% floor so carbs don't go negative and the macro split stays coherent.
+  let fatG = Math.round((kcal * 0.25) / 9)
+  if (proteinKcal + fatG * 9 > kcal) {
+    const fatFloorKcal = Math.max(kcal * 0.15, kcal - proteinKcal)
+    fatG = Math.max(0, Math.round(Math.min(kcal * 0.25, fatFloorKcal) / 9))
+  }
   const fatKcal = fatG * 9
   // Carbs: remainder
   const carbsG = Math.round((kcal - proteinKcal - fatKcal) / 4)
@@ -113,10 +119,13 @@ export function bodyFatNavy(
   sex: Sex,
 ): number {
   if (sex === 'M') {
+    // log10 argument must be positive: waist must exceed neck
+    if (waistCm - neckCm <= 0 || heightCm <= 0) return NaN
     const val = 86.010 * Math.log10(waistCm - neckCm) - 70.041 * Math.log10(heightCm) + 36.76
     return Math.max(0, val)
   }
   const hip = hipCm ?? waistCm * 1.1
+  if (waistCm + hip - neckCm <= 0 || heightCm <= 0) return NaN
   const val = 163.205 * Math.log10(waistCm + hip - neckCm) - 97.684 * Math.log10(heightCm) - 78.387
   return Math.max(0, val)
 }

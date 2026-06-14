@@ -50,8 +50,8 @@ const FRAMEWORKS = [
 ]
 
 export default async function FrameworkPage() {
-  const session = await requireAuth()
-  const plan = await getUserPlan(session.id)
+  await requireAuth()
+  const plan = await getUserPlan()
 
   return (
     <div className="page-no-nav" style={{ paddingTop: 16 }}>

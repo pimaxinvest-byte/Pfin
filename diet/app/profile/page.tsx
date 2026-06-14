@@ -85,10 +85,21 @@ export default function ProfilePage() {
             {profileState?.error && <div className="alert alert-error">{profileState.error}</div>}
             {profileState?.success && <div className="alert alert-success">Guardado ✓</div>}
             <form action={profileAction}>
+              <div className="form-group">
+                <label className="form-label">Sexo biológico <span style={{ color: 'var(--red)' }}>*</span></label>
+                <select name="sex" className="form-select" defaultValue="" required>
+                  <option value="" disabled>Selecciona…</option>
+                  <option value="M">Hombre</option>
+                  <option value="F">Mujer</option>
+                </select>
+                <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: 4 }}>
+                  Necesario para calcular grasa corporal y metabolismo con precisión.
+                </div>
+              </div>
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Peso (kg)</label>
-                  <input type="number" name="weightKg" className="form-input" placeholder="75" min={20} max={500} step={0.1} />
+                  <input type="number" inputMode="decimal" name="weightKg" className="form-input" placeholder="75" min={20} max={500} step={0.1} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Altura (cm)</label>

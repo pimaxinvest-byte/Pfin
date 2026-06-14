@@ -22,8 +22,8 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = await requireAuth()
-  const client = await getClient(id, session.id)
+  await requireAuth()
+  const client = await getClient(id)
   if (!client) notFound()
 
   const last = client.assessments[0]
