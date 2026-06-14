@@ -2,7 +2,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireTrainer } from '@/lib/auth'
 import { getClient } from '@/lib/actions/clients'
-import { bfCategory, getSupplements, generateWeeklyPlan, CATEGORY_LABELS } from '@/lib/nutrition'
+import { bfCategory, getSupplements, CATEGORY_LABELS } from '@/lib/nutrition'
+import { generateVariedWeekPlan } from '@/lib/recipes'
 import type { Sex, BuildingCategory } from '@/lib/nutrition'
 import BottomNav from '@/components/BottomNav'
 
@@ -38,7 +39,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
     : 'maintain'
 
   const supplements = getSupplements(goal, category)
-  const weekPlan = generateWeeklyPlan(goal, category)
+  const weekPlan = generateVariedWeekPlan(last?.targetKcal ?? 2200, goal, client.id)
   const essential = supplements.filter(s => s.priority === 'esencial')
   const recommended = supplements.filter(s => s.priority === 'recomendado')
 
@@ -214,7 +215,11 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
               ].map(({ label, key }) => (
                 <div key={key} style={{ fontSize: '0.78rem', display: 'flex', gap: 6, padding: '3px 0' }}>
                   <span>{label}</span>
-                  <span style={{ color: 'var(--text)' }}>{meals[key]}</span>
+                  <span style={{ flex: 1 }}>
+                    <span style={{ color: 'var(--text)', fontWeight: 600 }}>{meals[key].title}</span>
+                    <span style={{ color: 'var(--gold-dark)', marginLeft: 6 }}>~{meals[key].kcal} kcal</span>
+                    <span style={{ display: 'block', color: 'var(--muted)', fontSize: '0.72rem', marginTop: 1 }}>{meals[key].prep}</span>
+                  </span>
                 </div>
               ))}
             </div>

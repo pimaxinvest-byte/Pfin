@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { requireAuth, getUserWithGoals } from '@/lib/auth'
 import { getUserPlan } from '@/lib/actions/plan'
+import { generateVariedWeekPlan } from '@/lib/recipes'
 import BottomNav from '@/components/BottomNav'
 
 const STEPS = [
@@ -92,6 +93,39 @@ export default async function PlanPage() {
             })}
           </div>
         )}
+
+        {/* Plan semanal sugerido (generado a partir de tus calorías) */}
+        {goals?.kcal && (() => {
+          const weekPlan = generateVariedWeekPlan(goals.kcal, user?.profile?.goal ?? 'maintain', session.id)
+          return (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div className="card-title">🍽️ Plan semanal sugerido</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: 10 }}>
+                Generado para ~{goals.kcal} kcal/día · cocina española · variado
+              </div>
+              {Object.entries(weekPlan).map(([day, meals]) => (
+                <div key={day} style={{ marginBottom: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--gold-dark)', marginBottom: 4 }}>{day}</div>
+                  {[
+                    { label: '🌅', key: 'breakfast' as const },
+                    { label: '🥗', key: 'lunch' as const },
+                    { label: '🌙', key: 'dinner' as const },
+                    { label: '🍎', key: 'snack' as const },
+                  ].map(({ label, key }) => (
+                    <div key={key} style={{ fontSize: '0.78rem', display: 'flex', gap: 6, padding: '3px 0' }}>
+                      <span>{label}</span>
+                      <span style={{ flex: 1 }}>
+                        <span style={{ fontWeight: 600 }}>{meals[key].title}</span>
+                        <span style={{ color: 'var(--gold-dark)', marginLeft: 6 }}>~{meals[key].kcal} kcal</span>
+                        <span style={{ display: 'block', color: 'var(--muted)', fontSize: '0.72rem', marginTop: 1 }}>{meals[key].prep}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )
+        })()}
 
         {/* Steps */}
         {STEPS.map((step, i) => (

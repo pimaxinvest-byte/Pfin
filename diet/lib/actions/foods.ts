@@ -5,6 +5,8 @@ import { z } from 'zod'
 import { db } from '../db'
 import { requireAuth } from '../auth'
 import type { FormState } from '../form-state'
+import { calcBMR, calcTDEE, goalKcalRange, macroTargets } from '../nutrition'
+import type { Sex } from '../nutrition'
 
 const FoodSchema = z.object({
   name: z.string().min(2).max(100),
@@ -79,6 +81,27 @@ export async function saveProfile(_prev: unknown, form: FormData): Promise<FormS
     update: parsed.data,
     create: { userId: session.id, ...parsed.data },
   })
+
+  // Auto-calculate calorie + macro goals from the physical data, so the client
+  // gets a target without needing the full skinfold assessment. We estimate
+  // lean mass from a sex-typical body-fat default (assessment refines it later).
+  const { weightKg, heightCm, birthYear, sex, activityLevel, goal } = parsed.data
+  if (weightKg && heightCm && birthYear) {
+    const age = new Date().getFullYear() - birthYear
+    const bmr = calcBMR(weightKg, heightCm, age, sex as Sex)
+    const tdee = calcTDEE(bmr, activityLevel)
+    const range = goalKcalRange(tdee, goal)
+    const kcal = Math.round((range.min + range.max) / 2)
+    const defaultBF = sex === 'M' ? 0.18 : 0.27
+    const leanMassKg = weightKg * (1 - defaultBF)
+    const macros = macroTargets(kcal, leanMassKg, goal)
+    await db.userGoals.upsert({
+      where: { userId: session.id },
+      update: { kcal, ...macros },
+      create: { userId: session.id, kcal, ...macros },
+    })
+  }
+
   revalidatePath('/profile')
   return { success: true }
 }
