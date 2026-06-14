@@ -11,9 +11,13 @@ export default function LoginPage() {
   return (
     <div className="page-no-nav">
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <div className="auth-logo">🥗</div>
-        <div className="auth-title">DietBook</div>
-        <div className="auth-sub">Tu diario de alimentación</div>
+        <div className="auth-brand">
+          <div className="auth-brand-logo">🏋️</div>
+          <div className="auth-brand-name"><span>DADDY&apos;S</span> TRAINER</div>
+          <div className="auth-brand-sub">Coach Pietro · Nutrición & Culturismo</div>
+        </div>
+        <div className="auth-title">Bienvenido</div>
+        <div className="auth-sub">Entra para gestionar tu nutrición</div>
 
         {state?.error && <div className="alert alert-error">{state.error}</div>}
 

@@ -122,7 +122,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   min-width: 60px;
 }
 .nav-item svg { width: 24px; height: 24px; }
-.nav-item.active { color: var(--green-dark); }
+.nav-item.active { color: var(--gold-dark); }
 
 /* ---------- cards ---------- */
 .card {
@@ -223,12 +223,12 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   white-space: nowrap;
 }
 .btn:active { transform: scale(.97); opacity: .9; }
-.btn-primary { background: var(--green); color: #fff; width: 100%; }
+.btn-primary { background: var(--gold); color: #000; width: 100%; }
 .btn-danger { background: var(--red); color: #fff; }
 .btn-ghost { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
 .btn-icon {
-  background: var(--green-light);
-  color: var(--green-dark);
+  background: var(--gold-light);
+  color: var(--gold-dark);
   border: none;
   border-radius: 50%;
   width: 40px; height: 40px;
@@ -249,14 +249,14 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   right: 20px;
   width: 56px; height: 56px;
   border-radius: 50%;
-  background: var(--green);
-  color: #fff;
+  background: var(--gold);
+  color: #000;
   border: none;
   font-size: 1.8rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 16px rgba(34,197,94,.4);
+  box-shadow: 0 4px 16px rgba(245,158,11,.4);
   cursor: pointer;
   z-index: 99;
   -webkit-tap-highlight-color: transparent;
@@ -281,7 +281,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 }
 .form-input:focus, .form-select:focus {
   outline: none;
-  border-color: var(--green);
+  border-color: var(--gold);
 }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
@@ -296,7 +296,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   font-size: 1rem;
   background: var(--surface);
 }
-.search-input:focus { outline: none; border-color: var(--green); }
+.search-input:focus { outline: none; border-color: var(--gold); }
 
 /* ---------- food-card in search ---------- */
 .food-card {
@@ -312,10 +312,10 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   transition: border-color .15s;
   -webkit-tap-highlight-color: transparent;
 }
-.food-card:active { border-color: var(--green); background: var(--green-light); }
+.food-card:active { border-color: var(--gold); background: var(--gold-light); }
 .food-card-name { font-weight: 600; font-size: 0.95rem; }
 .food-card-meta { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
-.food-card-kcal { font-weight: 700; color: var(--green-dark); font-size: 0.9rem; white-space: nowrap; }
+.food-card-kcal { font-weight: 700; color: var(--gold-dark); font-size: 0.9rem; white-space: nowrap; }
 
 /* ---------- badge ---------- */
 .badge {
@@ -334,11 +334,21 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 .alert-success { background: var(--green-light); color: var(--green-dark); }
 
 /* ---------- auth pages ---------- */
+.auth-brand { display: flex; flex-direction: column; align-items: center; margin-bottom: 24px; }
+.auth-brand-logo {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: #000; border: 4px solid var(--gold);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.1rem; margin-bottom: 12px;
+}
+.auth-brand-name { font-size: 1.5rem; font-weight: 900; letter-spacing: -0.02em; line-height: 1.05; text-align: center; }
+.auth-brand-name span { color: var(--gold); }
+.auth-brand-sub { font-size: 0.72rem; color: var(--muted); font-weight: 500; margin-top: 2px; }
 .auth-logo { font-size: 3rem; text-align: center; margin-bottom: 8px; }
 .auth-title { font-size: 1.5rem; font-weight: 800; text-align: center; margin-bottom: 4px; }
 .auth-sub { text-align: center; color: var(--muted); margin-bottom: 28px; font-size: 0.9rem; }
 .auth-footer { text-align: center; color: var(--muted); font-size: 0.9rem; margin-top: 20px; }
-.auth-footer a { color: var(--green-dark); font-weight: 600; }
+.auth-footer a { color: var(--gold-dark); font-weight: 600; }
 
 /* ---------- progress bars (weekly) ---------- */
 .week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
@@ -362,7 +372,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   cursor: pointer;
   color: var(--muted);
 }
-.tab.active { background: var(--green); border-color: var(--green); color: #fff; }
+.tab.active { background: var(--gold); border-color: var(--gold); color: #000; }
 
 /* ---------- stat chips ---------- */
 .stat-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }

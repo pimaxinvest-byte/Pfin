@@ -11,9 +11,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  themeColor: '#f59e0b',
+  // Allow zoom up to 5x for accessibility (WCAG 1.4.4). 16px inputs prevent iOS auto-zoom.
+  maximumScale: 5,
+  themeColor: '#0f172a',
 }
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -22,7 +22,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="Daddy's Trainer" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body>{children}</body>
     </html>

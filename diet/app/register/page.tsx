@@ -11,9 +11,13 @@ export default function RegisterPage() {
   return (
     <div className="page-no-nav">
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <div className="auth-logo">🥗</div>
+        <div className="auth-brand">
+          <div className="auth-brand-logo">🏋️</div>
+          <div className="auth-brand-name"><span>DADDY&apos;S</span> TRAINER</div>
+          <div className="auth-brand-sub">Coach Pietro · Nutrición & Culturismo</div>
+        </div>
         <div className="auth-title">Crear cuenta</div>
-        <div className="auth-sub">Empieza a llevar tu dieta hoy</div>
+        <div className="auth-sub">Empieza tu transformación hoy</div>
 
         {state?.error && <div className="alert alert-error">{state.error}</div>}
 
