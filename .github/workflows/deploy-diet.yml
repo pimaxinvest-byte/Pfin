@@ -19,6 +19,7 @@ jobs:
 
       - name: Deploy
         working-directory: diet
-        run: railway up --service ${{ vars.RAILWAY_SERVICE_ID }} --detach
+        run: railway up --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ vars.RAILWAY_PROJECT_ID }}
