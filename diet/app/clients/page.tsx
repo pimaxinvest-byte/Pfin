@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { requireAuth } from '@/lib/auth'
+import { requireTrainer } from '@/lib/auth'
 import { getClients } from '@/lib/actions/clients'
 import { bfCategory } from '@/lib/nutrition'
 import type { Sex } from '@/lib/nutrition'
@@ -14,7 +14,7 @@ const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
 }
 
 export default async function ClientsPage() {
-  await requireAuth()
+  await requireTrainer()
   const clients = await getClients()
 
   return (

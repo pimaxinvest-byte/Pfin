@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { db } from '../db'
-import { requireAuth } from '../auth'
+import { requireTrainer } from '../auth'
 import type { FormState } from '../form-state'
 import {
   calcBMR, calcTDEE, calcTDEEEnhanced, goalKcalRange, macroTargets,
@@ -44,7 +44,7 @@ function clean(v: string | undefined | null) {
 }
 
 export async function createClient(_prev: unknown, form: FormData): Promise<FormState> {
-  const session = await requireAuth()
+  const session = await requireTrainer()
   const raw = Object.fromEntries(form)
   raw.isEnhanced = form.get('isEnhanced') === 'on' ? 'true' : 'false'
   raw.healthCheck = form.get('healthCheck') === 'on' ? 'true' : 'false'
@@ -84,7 +84,7 @@ export async function createClient(_prev: unknown, form: FormData): Promise<Form
 }
 
 export async function updateClient(_prev: unknown, form: FormData): Promise<FormState> {
-  const session = await requireAuth()
+  const session = await requireTrainer()
   const id = form.get('id') as string
   const existing = await db.client.findFirst({ where: { id, trainerId: session.id } })
   if (!existing) return { error: 'Cliente no encontrado' }
@@ -106,7 +106,7 @@ export async function updateClient(_prev: unknown, form: FormData): Promise<Form
 }
 
 export async function getClients() {
-  const session = await requireAuth()
+  const session = await requireTrainer()
   return db.client.findMany({
     where: { trainerId: session.id, isActive: true },
     orderBy: { createdAt: 'desc' },
@@ -115,7 +115,7 @@ export async function getClients() {
 }
 
 export async function getClient(id: string) {
-  const session = await requireAuth()
+  const session = await requireTrainer()
   return db.client.findFirst({
     where: { id, trainerId: session.id },
     include: { assessments: { orderBy: { date: 'desc' }, take: 10 } },
@@ -123,14 +123,14 @@ export async function getClient(id: string) {
 }
 
 export async function deleteClient(id: string) {
-  const session = await requireAuth()
+  const session = await requireTrainer()
   await db.client.updateMany({ where: { id, trainerId: session.id }, data: { isActive: false } })
   revalidatePath('/clients')
   redirect('/clients')
 }
 
 export async function saveClientAssessment(_prev: unknown, form: FormData): Promise<FormState> {
-  const session = await requireAuth()
+  const session = await requireTrainer()
   const clientId = form.get('clientId') as string
   const client = await db.client.findFirst({ where: { id: clientId, trainerId: session.id } })
   if (!client) return { error: 'Cliente no autorizado' }

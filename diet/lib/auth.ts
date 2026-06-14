@@ -5,10 +5,26 @@ import { db } from './db'
 const SESSION_COOKIE = 'diet_session'
 const MAX_AGE = 60 * 60 * 24 * 30
 
+export type Role = 'TRAINER' | 'USER'
+
 export type SessionUser = {
   id: string
   email: string
   name: string
+  role: Role
+}
+
+// Trainer accounts are identified by email. Override with the TRAINER_EMAILS
+// env var (comma-separated). Falls back to the coach + demo accounts so the
+// app works out of the box. Everyone else is a regular client.
+function trainerEmails(): string[] {
+  const env = process.env.TRAINER_EMAILS
+  const list = env ? env.split(',') : ['demo@daddystrainer.com', 'pimaxinvest@gmail.com']
+  return list.map((e) => e.trim().toLowerCase()).filter(Boolean)
+}
+
+export function roleForEmail(email: string): Role {
+  return trainerEmails().includes(email.toLowerCase()) ? 'TRAINER' : 'USER'
 }
 
 // SESSION_SECRET must be set in production. In dev we fall back to a fixed
@@ -45,7 +61,10 @@ export async function getSession(): Promise<SessionUser | null> {
   const signature = raw.slice(dot + 1)
   if (!verify(payload, signature)) return null
   try {
-    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as SessionUser
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as SessionUser
+    // Backfill role for sessions issued before roles existed.
+    if (!parsed.role) parsed.role = roleForEmail(parsed.email)
+    return parsed
   } catch {
     return null
   }
@@ -76,6 +95,15 @@ export async function requireAuth(): Promise<SessionUser> {
     redirect('/login')
   }
   return session!
+}
+
+export async function requireTrainer(): Promise<SessionUser> {
+  const session = await requireAuth()
+  if (session.role !== 'TRAINER') {
+    const { redirect } = await import('next/navigation')
+    redirect('/dashboard')
+  }
+  return session
 }
 
 export async function getUserWithGoals(userId: string) {

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { requireAuth } from '@/lib/auth'
+import { requireTrainer } from '@/lib/auth'
 import { getClient } from '@/lib/actions/clients'
 import { bfCategory, getSupplements, generateWeeklyPlan, CATEGORY_LABELS } from '@/lib/nutrition'
 import type { Sex, BuildingCategory } from '@/lib/nutrition'
@@ -22,7 +22,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  await requireAuth()
+  await requireTrainer()
   const client = await getClient(id)
   if (!client) notFound()
 

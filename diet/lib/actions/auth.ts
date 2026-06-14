@@ -4,8 +4,14 @@ import { redirect } from 'next/navigation'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { db } from '../db'
-import { createSession, destroySession } from '../auth'
+import { createSession, destroySession, getSession, roleForEmail } from '../auth'
 import type { FormState } from '../form-state'
+import type { Role } from '../auth'
+
+export async function getMyRole(): Promise<Role | null> {
+  const session = await getSession()
+  return session?.role ?? null
+}
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -31,7 +37,7 @@ export async function login(_prev: unknown, form: FormData): Promise<FormState> 
   const ok = await bcrypt.compare(parsed.data.password, user.password)
   if (!ok) return { error: 'Email o contraseña incorrectos' }
 
-  await createSession({ id: user.id, email: user.email, name: user.name })
+  await createSession({ id: user.id, email: user.email, name: user.name, role: roleForEmail(user.email) })
   redirect('/dashboard')
 }
 
@@ -57,7 +63,7 @@ export async function register(_prev: unknown, form: FormData): Promise<FormStat
     },
   })
 
-  await createSession({ id: user.id, email: user.email, name: user.name })
+  await createSession({ id: user.id, email: user.email, name: user.name, role: roleForEmail(user.email) })
   redirect('/dashboard')
 }
 

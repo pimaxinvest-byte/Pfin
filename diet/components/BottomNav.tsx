@@ -1,4 +1,8 @@
+'use client'
+
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
+import { getMyRole } from '@/lib/actions/auth'
 
 const items = [
   {
@@ -49,9 +53,15 @@ const items = [
 ]
 
 export default function BottomNav({ active }: { active: string }) {
+  const [isTrainer, setIsTrainer] = useState(false)
+  useEffect(() => {
+    getMyRole().then((role) => setIsTrainer(role === 'TRAINER'))
+  }, [])
+  // Only trainers see the "Clientes" tab.
+  const visible = items.filter((item) => item.href !== '/clients' || isTrainer)
   return (
     <nav className="bottom-nav">
-      {items.map((item) => (
+      {visible.map((item) => (
         <Link key={item.href} href={item.href} className={`nav-item${active === item.href ? ' active' : ''}`}>
           {item.icon}
           <span>{item.label}</span>
