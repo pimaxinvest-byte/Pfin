@@ -2,6 +2,18 @@
 
 > Archivo de seguimiento. Se actualiza en cada hito para retomar sin re-explorar.
 > Última actualización: 2026-06-14
+>
+> ⚡ AL REANUDAR: leer SOLO este archivo. No re-explorar el código.
+
+## ▶ AHORA MISMO (próxima acción)
+Usuario debe pegar en Railway → servicio Next.js → Variables → Raw Editor:
+```
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+SESSION_SECRET=daddystrainer-coach-pietro-x7K9mP2nQ8vR4wL6jH3sT5uY1eA0bC
+NODE_ENV=production
+```
+Tras arrancar el contenedor → `npm run db:seed` (65 alimentos + demo).
+Demo login: `demo@daddystrainer.com` / `demo1234`.
 
 ## App
 - **Carpeta**: `diet/` (app independiente; coexiste con `gym/` y `gym-v2/` en el repo)
