@@ -25,6 +25,17 @@ export default async function ClientsPage() {
           <Link href="/clients/new" className="btn-icon" style={{ textDecoration: 'none' }}>＋</Link>
         </div>
 
+        <Link href="/users" style={{ textDecoration: 'none', display: 'block', marginBottom: 12 }}>
+          <div className="card" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 12, background: 'var(--gold-light)', border: '1.5px solid var(--gold)' }}>
+            <div style={{ fontSize: '1.4rem' }}>👥</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>Cuentas activas</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>Usuarios registrados que meten sus datos</div>
+            </div>
+            <div style={{ color: 'var(--gold-dark)', fontSize: '1.1rem' }}>›</div>
+          </div>
+        </Link>
+
         {clients.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '48px 0' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>👤</div>
