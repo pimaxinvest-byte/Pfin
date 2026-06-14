@@ -6,14 +6,15 @@
 > ⚡ AL REANUDAR: leer SOLO este archivo. No re-explorar el código.
 
 ## ▶ AHORA MISMO (próxima acción)
-Usuario debe pegar en Railway → servicio Next.js → Variables → Raw Editor:
-```
-DATABASE_URL=${{Postgres.DATABASE_URL}}
-SESSION_SECRET=daddystrainer-coach-pietro-x7K9mP2nQ8vR4wL6jH3sT5uY1eA0bC
-NODE_ENV=production
-```
-Tras arrancar el contenedor → `npm run db:seed` (65 alimentos + demo).
-Demo login: `demo@daddystrainer.com` / `demo1234`.
+✅ Variables puestas en Railway. ✅ Migraciones aplicadas. ✅ App arranca (`✓ Ready`).
+✅ Seed automatizado en `startCommand` (idempotente + `|| true`) → carga sola en cada deploy.
+PENDIENTE USUARIO: generar dominio público (Settings → Networking → Generate Domain)
+y probar login demo: `demo@daddystrainer.com` / `demo1234`.
+
+Nota deploy: Railway despliega desde `main`. Workflow = commit en rama dev → push dev
+→ `git push origin <dev>:main` para disparar redeploy.
+Riesgo a vigilar: `db:seed` usa `tsx` (devDep); si runtime no lo tiene, el guard `|| true`
+deja arrancar la app pero SIN datos. Verificar en deploy log que el seed corrió.
 
 ## App
 - **Carpeta**: `diet/` (app independiente; coexiste con `gym/` y `gym-v2/` en el repo)
