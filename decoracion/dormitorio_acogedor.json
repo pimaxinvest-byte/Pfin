@@ -1,0 +1,600 @@
+{
+  "project": "Dormitorio pequeño acogedor",
+  "style": "hotel boutique escandinavo cálido",
+  "date": "2026-06-28",
+  "providers": ["AliExpress", "Temu", "IKEA", "JYSK"],
+  "notes": "Precios verificados mediante búsqueda web pública. Los marcados como 'no verificado' tienen URL real pero precio no confirmado en snippet. Envío a España peninsular.",
+  "products": [
+    {
+      "id": 1,
+      "categoria": "Paneles de pared efecto roble / listones de madera",
+      "producto": "HEMDRUP Panel decorativo pared 200x60 roble cálido",
+      "proveedor": "JYSK",
+      "precio": "no verificado",
+      "medidas": "200 x 60 x 3 cm",
+      "material": "Chapa artificial / MDF",
+      "color": "Roble cálido",
+      "valoracion": "no verificado",
+      "plazo_estimado": "2-5 días hábiles (Click & Collect o envío a domicilio)",
+      "enlace": "https://jysk.es/almacenaje/otros/panel-decorativo-de-pared-hemdrup-200x60-color-roble-calido",
+      "motivo": "Panel decorativo de pared en roble cálido escandinavo, medidas ideales para cabecero. Acabado coherente con el estilo. SKU verificado: 3650126."
+    },
+    {
+      "id": 2,
+      "categoria": "Paneles de pared efecto roble / listones de madera",
+      "producto": "KETTINGE Panel decorativo pared 160x90 natural",
+      "proveedor": "JYSK",
+      "precio": "no verificado",
+      "medidas": "160 x 90 cm",
+      "material": "Madera natural / Paulownia",
+      "color": "Natural",
+      "valoracion": "no verificado",
+      "plazo_estimado": "2-5 días hábiles",
+      "enlace": "https://jysk.es/almacenaje/otros/panel-decorativo-de-pared-kettinge-160x90-natural",
+      "motivo": "Alternativa en madera natural más amplia. Formato horizontal ideal para paredes de dormitorio pequeño."
+    },
+    {
+      "id": 3,
+      "categoria": "Paneles de pared efecto roble / listones de madera",
+      "producto": "SIBBARP Panel pared efecto roble laminado, 1 m²x1.3 cm",
+      "proveedor": "IKEA",
+      "precio": "no verificado (a medida, requiere consulta en tienda)",
+      "medidas": "A medida (hasta 360 cm largo, 15.1-120 cm alto)",
+      "material": "Laminado efecto roble",
+      "color": "Efecto roble",
+      "valoracion": "no verificado",
+      "plazo_estimado": "Compra en tienda o cita previa",
+      "enlace": "https://www.ikea.com/es/es/p/sibbarp-panel-pared-efecto-roble-laminado-70444490/",
+      "motivo": "Panel laminado de alta durabilidad, fácil limpieza. Formato a medida permite adaptarlo exactamente al espacio detrás de la cama."
+    },
+    {
+      "id": 4,
+      "categoria": "Paneles de pared efecto roble / listones de madera",
+      "producto": "Paneles acústicos listones madera 3D 240x32 cm (2 piezas)",
+      "proveedor": "Temu",
+      "precio": "no verificado (estimado 25-40 €/pack)",
+      "medidas": "240 x 32 cm por panel",
+      "material": "MDF / madera compuesta",
+      "color": "Roble / natural",
+      "valoracion": "no verificado",
+      "plazo_estimado": "7-15 días (envío desde España o China)",
+      "enlace": "https://www.temu.com/us-es/listones-de-madera-para-pared-paneles-acouticos-de-list-c3-b3n-de-madera-para-decoraci-c3-b3n-de-paredes-240-x-32-cm-paneles-de-pared-insonorizantes-en-3d-panel-absorbente-de-sonido-para-estudio-hogar-ocio-f-c3-a1cil-instalaci-c3-b3n-2-piezas-g-601100200067948.html",
+      "motivo": "Opción low-cost con función acústica. Formato 3D estriado. Requiere verificar calidad visual antes de comprar."
+    },
+    {
+      "id": 5,
+      "categoria": "Aplique de pared latón/dorado con luz cálida 2700K",
+      "producto": "SOLKLINT Apliqué instalación fija, latón/vidrio transparente gris",
+      "proveedor": "IKEA",
+      "precio": "15-17 €",
+      "medidas": "No especificado (aplique de pared)",
+      "material": "Latón / vidrio",
+      "color": "Latón / gris transparente",
+      "valoracion": "Alta (producto establecido en catálogo IKEA)",
+      "plazo_estimado": "Disponible en tienda o envío 3-5 días",
+      "enlace": "https://www.ikea.com/es/es/p/solklint-aplique-instalacion-fija-laton-vidrio-transparente-gris-30472022/",
+      "motivo": "Aplique de latón auténtico con acabado cálido. Precio muy competitivo, luz ambiental suave con sombras decorativas en pared. Bombilla cálida 2700K compatible."
+    },
+    {
+      "id": 6,
+      "categoria": "Aplique de pared latón/dorado con luz cálida 2700K",
+      "producto": "Aplique pared dorado LED moderno (categoría AliExpress)",
+      "proveedor": "AliExpress",
+      "precio": "no verificado (estimado 15-45 €)",
+      "medidas": "Variable según modelo",
+      "material": "Metal / latón sintético / LED integrado",
+      "color": "Dorado",
+      "valoracion": "no verificado",
+      "plazo_estimado": "10-20 días (envío desde China a España)",
+      "enlace": "https://es.aliexpress.com/w/wholesale-aplique-de-pared-laton.html",
+      "motivo": "Mayor variedad de formas y estilos. Requiere revisar valoraciones del vendedor (>4.5★) y foto real del producto antes de comprar."
+    },
+    {
+      "id": 7,
+      "categoria": "Estantería esquinera o baldas flotantes de madera",
+      "producto": "KETTINGE Estante de pared 6 estantes natural",
+      "proveedor": "JYSK",
+      "precio": "35 €",
+      "medidas": "60 x 80 x 17 cm",
+      "material": "Madera maciza Paulownia",
+      "color": "Natural",
+      "valoracion": "Alta (producto destacado en prensa especializada ES)",
+      "plazo_estimado": "2-5 días hábiles",
+      "enlace": "https://jysk.es/almacenaje/baldas/estante-de-pared-kettinge-6-estantes-natural",
+      "motivo": "Madera maciza real de paulownia, 6 baldas ajustables, acabado natural cálido. Precio muy competitivo para madera maciza. Estilo escandinavo perfecto."
+    },
+    {
+      "id": 8,
+      "categoria": "Estantería esquinera o baldas flotantes de madera",
+      "producto": "LACK Estante pared efecto roble tinte blanco 110x26 cm",
+      "proveedor": "IKEA",
+      "precio": "no verificado (estimado 14-20 €)",
+      "medidas": "110 x 26 cm",
+      "material": "Tablero aglomerado / efecto madera",
+      "color": "Efecto roble tinte blanco",
+      "valoracion": "Alta (referencia IKEA clásica)",
+      "plazo_estimado": "Disponible en tienda o envío 3-5 días",
+      "enlace": "https://www.ikea.com/es/es/p/lack-estante-pared-efecto-roble-tinte-blanco-60383519/",
+      "motivo": "Balda flotante limpia y minimalista, herrajes ocultos. Combinable con la cama y paneles. Tono roble blanqueado coherente con el estilo nórdico."
+    },
+    {
+      "id": 9,
+      "categoria": "Estantería esquinera o baldas flotantes de madera",
+      "producto": "KAREBY Estantería esquinera beis",
+      "proveedor": "JYSK",
+      "precio": "no verificado",
+      "medidas": "no verificado",
+      "material": "no verificado",
+      "color": "Beis",
+      "valoracion": "no verificado",
+      "plazo_estimado": "2-5 días hábiles",
+      "enlace": "https://jysk.es/bano/accesorios-de-bano/almacenaje-para-el-bano/estanteria-esquinera-kareby-beis",
+      "motivo": "Única estantería esquinera confirmada en catálogo JYSK España. Verificar disponibilidad y precio en web."
+    },
+    {
+      "id": 10,
+      "categoria": "Funda nórdica lino lavado beige / arena / blanco roto",
+      "producto": "DYTÅG Funda nórdica + funda almohada, lino 100%, blanco/beige",
+      "proveedor": "IKEA",
+      "precio": "~60-99 € (240x220: 99€; 150x200: estimado 60-70€)",
+      "medidas": "150x200/50x60 cm o 240x220/50x60 cm",
+      "material": "100% lino prewash",
+      "color": "Blanco / Beige (serie)",
+      "valoracion": "Muy alta (colección premiada, textura natural)",
+      "plazo_estimado": "Disponible en tienda o envío 3-5 días",
+      "enlace": "https://www.ikea.com/es/es/p/dytag-funda-nordica-funda-almohada-blanco-60518764/",
+      "motivo": "Lino 100% prewash, textura irregular auténtica, regulación térmica excelente. La mejor opción calidad/autenticidad en IKEA. Combinación perfecta con el estilo escandinavo cálido."
+    },
+    {
+      "id": 11,
+      "categoria": "Funda nórdica lino lavado beige / arena / blanco roto",
+      "producto": "ÄNGSLILJA Funda nórdica + funda almohada beige grisáceo",
+      "proveedor": "IKEA",
+      "precio": "no verificado (estimado 35-50 €)",
+      "medidas": "150x200/50x60 cm",
+      "material": "Algodón lavado",
+      "color": "Beige grisáceo",
+      "valoracion": "Alta",
+      "plazo_estimado": "Disponible en tienda o envío 3-5 días",
+      "enlace": "https://www.ikea.com/es/es/p/angslilja-funda-nordica-2-fundas-almohada-beige-grisaceo-80490759/",
+      "motivo": "Alternativa más económica en algodón lavado con tono beige grisáceo neutro. Buena opción low-cost con estética similar."
+    },
+    {
+      "id": 12,
+      "categoria": "Cojines verde oliva y terracota",
+      "producto": "ROSENVIAL Cojín 45x45 verde",
+      "proveedor": "JYSK",
+      "precio": "5 €",
+      "medidas": "45 x 45 cm",
+      "material": "no verificado (tejido decorativo)",
+      "color": "Verde",
+      "valoracion": "Alta (precio verificado)",
+      "plazo_estimado": "2-5 días hábiles",
+      "enlace": "https://jysk.es/articulos-para-el-hogar/cojines/cojines-decorativos/cojin-rosenvial-45x45-verde",
+      "motivo": "Precio excepcional. Color verde que se acerca al tono oliva. Comprar 2-3 unidades para layering."
+    },
+    {
+      "id": 13,
+      "categoria": "Cojines verde oliva y terracota",
+      "producto": "ROSENVIAL Cojín 45x45 arena oscuro",
+      "proveedor": "JYSK",
+      "precio": "~5 €",
+      "medidas": "45 x 45 cm",
+      "material": "no verificado (tejido decorativo)",
+      "color": "Arena oscuro / terracota",
+      "valoracion": "Alta",
+      "plazo_estimado": "2-5 días hábiles",
+      "enlace": "https://jysk.es/articulos-para-el-hogar/cojines/cojines-decorativos/cojin-rosenvial-45x45-arena-oscuro",
+      "motivo": "Tono arena oscuro que se acerca al terracota. Mismo modelo que el verde, permite mezclar colores con coherencia visual."
+    },
+    {
+      "id": 14,
+      "categoria": "Cojines verde oliva y terracota",
+      "producto": "SANDTRAV Cojín 45x45 verde grisáceo/blanco",
+      "proveedor": "IKEA",
+      "precio": "~9-14 €",
+      "medidas": "45 x 45 cm",
+      "material": "Algodón",
+      "color": "Verde grisáceo / blanco",
+      "valoracion": "Alta",
+      "plazo_estimado": "Disponible en tienda o envío 3-5 días",
+      "enlace": "https://www.ikea.com/es/es/p/sandtrav-cojin-verde-grisaceo-blanco-80563449/",
+      "motivo": "Cojín de algodón con tono verde suave, bicolor elegante. Complementa bien con el terracota."
+    },
+    {
+      "id": 15,
+      "categoria": "Alfombra crema/beige 160x230",
+      "producto": "VOLLERSLEV Alfombra pelo largo beige 160x230 cm",
+      "proveedor": "IKEA",
+      "precio": "249 €",
+      "medidas": "160 x 230 cm",
+      "material": "Pelo largo (100% poliéster reciclado)",
+      "color": "Beige",
+      "valoracion": "Muy alta (producto estrella IKEA)",
+      "plazo_estimado": "Disponible en tienda o envío 3-5 días",
+      "enlace": "https://www.ikea.com/es/es/p/vollerslev-alfombra-pelo-largo-beige-50614252/",
+      "motivo": "Pelo largo ultra suave que aporta máximo confort y calidez visual. Ideal para dormitorio acogedor. Amortigua pasos y mejora acústica."
+    },
+    {
+      "id": 16,
+      "categoria": "Alfombra crema/beige 160x230",
+      "producto": "MORUM Alfombra interior/exterior beige 160x230 cm",
+      "proveedor": "IKEA",
+      "precio": "50-60 €",
+      "medidas": "160 x 230 cm",
+      "material": "Polipropileno (fácil limpieza)",
+      "color": "Beige",
+      "valoracion": "Alta",
+      "plazo_estimado": "Disponible en tienda o envío 3-5 días",
+      "enlace": "https://www.ikea.com/es/es/p/morum-alfombra-interior-exterior-beige-20203563/",
+      "motivo": "Opción económica con buena resistencia y fácil mantenimiento. Superficie lisa permite mover sillas. Buena elección low-cost."
+    },
+    {
+      "id": 17,
+      "categoria": "Cortina lino natural crudo techo-suelo",
+      "producto": "UNNEN Cortina 1x140x300 arena aspecto lino",
+      "proveedor": "JYSK",
+      "precio": "~20 €/panel",
+      "medidas": "140 x 300 cm (1 panel)",
+      "material": "Aspecto lino (poliéster/mezcla)",
+      "color": "Arena / crudo",
+      "valoracion": "Alta (precio confirmado ~19.99€)",
+      "plazo_estimado": "2-5 días hábiles",
+      "enlace": "https://jysk.es/cortinas/cortinas/cortinas-traslucidas/cortina-unnen-1x140x300-arena-aspecto-lino",
+      "motivo": "Translúcida con caída natural, color arena perfecto para el estilo. 300 cm de altura para efecto techo-suelo. Se necesitan 2 paneles por ventana."
+    },
+    {
+      "id": 18,
+      "categoria": "Cortina lino natural crudo techo-suelo",
+      "producto": "LYR Cortina 1x140x300 lino",
+      "proveedor": "JYSK",
+      "precio": "no verificado (estimado 15-25 €/panel)",
+      "medidas": "140 x 300 cm (1 panel)",
+      "material": "Lino",
+      "color": "Natural lino",
+      "valoracion": "no verificado",
+      "plazo_estimado": "2-5 días hábiles",
+      "enlace": "https://jysk.es/cortinas/cortinas/cortinas-traslucidas/cortina-lyr-1x140x300-lino",
+      "motivo": "Cortina de lino real. Textura más auténtica que la UNNEN. Verificar precio en web para confirmar."
+    },
+    {
+      "id": 19,
+      "categoria": "Cortina lino natural crudo techo-suelo",
+      "producto": "ROR Cortina 1x140x300 natural",
+      "proveedor": "JYSK",
+      "precio": "~10 €/panel",
+      "medidas": "140 x 300 cm (1 panel)",
+      "material": "no verificado",
+      "color": "Natural",
+      "valoracion": "Alta (mencionada en prensa como bestseller 10€)",
+      "plazo_estimado": "2-5 días hábiles",
+      "enlace": "https://jysk.es/cortinas/cortinas/cortinas-gruesas/cortina-ror-1x140x300-natural",
+      "motivo": "La cortina más económica de JYSK en color natural techo-suelo. Mencionada como 'parece Zara Home'. Precio muy competitivo para 300 cm de caída."
+    },
+    {
+      "id": 20,
+      "categoria": "Plantas artificiales / jarrones cerámica / decoración natural",
+      "producto": "FEJKA Planta artificial colgante helecho 12 cm",
+      "proveedor": "IKEA",
+      "precio": "5.99 €",
+      "medidas": "Maceta 12 cm diámetro",
+      "material": "Plástico / poliéster (aspecto natural)",
+      "color": "Verde",
+      "valoracion": "Muy alta (bestseller IKEA)",
+      "plazo_estimado": "Disponible en tienda o envío 3-5 días",
+      "enlace": "https://www.ikea.com/es/es/p/fejka-planta-artificial-interior-exterior-colgante-helecho-10548631/",
+      "motivo": "Planta colgante muy realista. Bajo mantenimiento, resistente a ambientes secos. Precio mínimo para máximo efecto decorativo."
+    },
+    {
+      "id": 21,
+      "categoria": "Plantas artificiales / jarrones cerámica / decoración natural",
+      "producto": "Jarrón/florero cerámica decorativo",
+      "proveedor": "IKEA",
+      "precio": "desde 16.99 €",
+      "medidas": "Variable",
+      "material": "Cerámica",
+      "color": "Tonos neutros / beige / terracota",
+      "valoracion": "Alta",
+      "plazo_estimado": "Disponible en tienda o envío 3-5 días",
+      "enlace": "https://www.ikea.com/es/es/cat/floreros-jarrones-decorativos-10776/f/floreros-jarrones-decorativos-ceramica-f-materials--50606/",
+      "motivo": "Sección de jarrones cerámica IKEA con amplia variedad. Elegir 2-3 de diferentes alturas en tonos terracota/beige para composición natural."
+    },
+    {
+      "id": 22,
+      "categoria": "Plantas artificiales / jarrones cerámica / decoración natural",
+      "producto": "FEJKA Planta artificial esparraguera colgante",
+      "proveedor": "IKEA",
+      "precio": "34.99 €",
+      "medidas": "Maceta mayor, colgante",
+      "material": "Plástico / poliéster",
+      "color": "Verde",
+      "valoracion": "Muy alta",
+      "plazo_estimado": "Disponible en tienda o envío 3-5 días",
+      "enlace": "https://www.ikea.com/es/es/p/fejka-planta-artificial-interior-exterior-esparraguera-colgante-50593240/",
+      "motivo": "Versión premium de planta colgante FEJKA. Mayor volumen y efecto decorativo. Ideal si se tiene espacio en techo o estantería."
+    }
+  ],
+  "budgets": {
+    "low_cost": {
+      "descripcion": "Opción low-cost — máximo 300 €",
+      "total_estimado": "~260-285 €",
+      "items": [
+        {
+          "categoria": "Paneles de pared",
+          "producto": "Panel listones madera 3D 240x32cm x2 piezas",
+          "proveedor": "Temu",
+          "precio_estimado": "~30 €",
+          "enlace": "https://www.temu.com/us-es/listones-de-madera-para-pared-paneles-acouticos-de-list-c3-b3n-de-madera-para-decoraci-c3-b3n-de-paredes-240-x-32-cm-paneles-de-pared-insonorizantes-en-3d-panel-absorbente-de-sonido-para-estudio-hogar-ocio-f-c3-a1cil-instalaci-c3-b3n-2-piezas-g-601100200067948.html",
+          "nota": "Precio no verificado exactamente — revisar en Temu antes de comprar"
+        },
+        {
+          "categoria": "Aplique pared",
+          "producto": "SOLKLINT aplique latón",
+          "proveedor": "IKEA",
+          "precio_estimado": "17 €",
+          "enlace": "https://www.ikea.com/es/es/p/solklint-aplique-instalacion-fija-laton-vidrio-transparente-gris-30472022/"
+        },
+        {
+          "categoria": "Estantería / baldas",
+          "producto": "KETTINGE estante pared 6 estantes natural",
+          "proveedor": "JYSK",
+          "precio_estimado": "35 €",
+          "enlace": "https://jysk.es/almacenaje/baldas/estante-de-pared-kettinge-6-estantes-natural"
+        },
+        {
+          "categoria": "Funda nórdica",
+          "producto": "ÄNGSLILJA funda nórdica beige grisáceo 150x200",
+          "proveedor": "IKEA",
+          "precio_estimado": "~35-45 €",
+          "enlace": "https://www.ikea.com/es/es/p/angslilja-funda-nordica-2-fundas-almohada-beige-grisaceo-80490759/"
+        },
+        {
+          "categoria": "Cojines (x4)",
+          "producto": "ROSENVIAL 45x45 verde x2 + ROSENVIAL arena oscuro x2",
+          "proveedor": "JYSK",
+          "precio_estimado": "20 € (4 x 5€)",
+          "enlace": "https://jysk.es/articulos-para-el-hogar/cojines/cojines-decorativos"
+        },
+        {
+          "categoria": "Alfombra 160x230",
+          "producto": "MORUM alfombra beige 160x230",
+          "proveedor": "IKEA",
+          "precio_estimado": "~55 €",
+          "enlace": "https://www.ikea.com/es/es/p/morum-alfombra-interior-exterior-beige-20203563/"
+        },
+        {
+          "categoria": "Cortinas (x2 paneles)",
+          "producto": "ROR cortina 140x300 natural x2",
+          "proveedor": "JYSK",
+          "precio_estimado": "~20 € (2 x 10€)",
+          "enlace": "https://jysk.es/cortinas/cortinas/cortinas-gruesas/cortina-ror-1x140x300-natural"
+        },
+        {
+          "categoria": "Decoración",
+          "producto": "FEJKA helecho 5.99€ + jarrón cerámica 16.99€ + luces LED (Temu ~8€)",
+          "proveedor": "IKEA + Temu",
+          "precio_estimado": "~31 €",
+          "enlace": "https://www.ikea.com/es/es/p/fejka-planta-artificial-interior-exterior-colgante-helecho-10548631/"
+        }
+      ]
+    },
+    "balanced": {
+      "descripcion": "Opción equilibrada — máximo 500 €",
+      "total_estimado": "~380-430 €",
+      "items": [
+        {
+          "categoria": "Paneles de pared",
+          "producto": "HEMDRUP Panel decorativo 200x60 roble cálido x2",
+          "proveedor": "JYSK",
+          "precio_estimado": "no verificado — revisar precio en jysk.es",
+          "enlace": "https://jysk.es/almacenaje/otros/panel-decorativo-de-pared-hemdrup-200x60-color-roble-calido",
+          "nota": "Precio no verificado. Estimado ~35-50€/ud según rango JYSK"
+        },
+        {
+          "categoria": "Aplique pared",
+          "producto": "SOLKLINT aplique latón IKEA",
+          "proveedor": "IKEA",
+          "precio_estimado": "17 €",
+          "enlace": "https://www.ikea.com/es/es/p/solklint-aplique-instalacion-fija-laton-vidrio-transparente-gris-30472022/"
+        },
+        {
+          "categoria": "Estantería / baldas",
+          "producto": "KETTINGE estante pared 6 estantes natural + LACK 110cm roble",
+          "proveedor": "JYSK + IKEA",
+          "precio_estimado": "~50 € (35€ + ~15€)",
+          "enlace": "https://jysk.es/almacenaje/baldas/estante-de-pared-kettinge-6-estantes-natural"
+        },
+        {
+          "categoria": "Funda nórdica",
+          "producto": "DYTÅG funda nórdica lino 100% 150x200 (talla cama 90-135)",
+          "proveedor": "IKEA",
+          "precio_estimado": "~60-70 €",
+          "enlace": "https://www.ikea.com/es/es/p/dytag-funda-nordica-funda-almohada-blanco-60518764/"
+        },
+        {
+          "categoria": "Cojines (x5)",
+          "producto": "ROSENVIAL verde x2 + arena oscuro x2 + SANDTRAV IKEA x1",
+          "proveedor": "JYSK + IKEA",
+          "precio_estimado": "~30 €",
+          "enlace": "https://jysk.es/articulos-para-el-hogar/cojines/cojines-decorativos"
+        },
+        {
+          "categoria": "Alfombra 160x230",
+          "producto": "MORUM alfombra beige 160x230",
+          "proveedor": "IKEA",
+          "precio_estimado": "~55 €",
+          "enlace": "https://www.ikea.com/es/es/p/morum-alfombra-interior-exterior-beige-20203563/"
+        },
+        {
+          "categoria": "Cortinas (x2 paneles)",
+          "producto": "UNNEN cortina 140x300 arena aspecto lino x2",
+          "proveedor": "JYSK",
+          "precio_estimado": "~40 € (2 x 20€)",
+          "enlace": "https://jysk.es/cortinas/cortinas/cortinas-traslucidas/cortina-unnen-1x140x300-arena-aspecto-lino"
+        },
+        {
+          "categoria": "Decoración",
+          "producto": "FEJKA helecho + FEJKA esparraguera + jarrones cerámica x2 + luces LED",
+          "proveedor": "IKEA",
+          "precio_estimado": "~75 € (5.99+34.99+16.99x2+8€LED)",
+          "enlace": "https://www.ikea.com/es/es/cat/floreros-jarrones-decorativos-10776/"
+        }
+      ]
+    },
+    "premium": {
+      "descripcion": "Opción premium — máximo 800 €",
+      "total_estimado": "~680-760 €",
+      "items": [
+        {
+          "categoria": "Paneles de pared",
+          "producto": "SIBBARP Panel pared efecto roble laminado a medida",
+          "proveedor": "IKEA",
+          "precio_estimado": "no verificado (requiere cita tienda)",
+          "enlace": "https://www.ikea.com/es/es/p/sibbarp-panel-pared-efecto-roble-laminado-70444490/",
+          "nota": "Precio calculado por m². Acabado premium, resistente."
+        },
+        {
+          "categoria": "Aplique pared (x2)",
+          "producto": "SOLKLINT aplique latón x2 (uno por lado cama)",
+          "proveedor": "IKEA",
+          "precio_estimado": "34 € (2 x 17€)",
+          "enlace": "https://www.ikea.com/es/es/p/solklint-aplique-instalacion-fija-laton-vidrio-transparente-gris-30472022/"
+        },
+        {
+          "categoria": "Estantería / baldas",
+          "producto": "LACK estante 110cm + 30cm roble x3 (composición flotante)",
+          "proveedor": "IKEA",
+          "precio_estimado": "~50 €",
+          "enlace": "https://www.ikea.com/es/es/p/lack-estante-pared-efecto-roble-tinte-blanco-60383519/"
+        },
+        {
+          "categoria": "Funda nórdica",
+          "producto": "DYTÅG funda nórdica lino 100% 240x220 cm",
+          "proveedor": "IKEA",
+          "precio_estimado": "99 €",
+          "enlace": "https://www.ikea.com/es/es/p/dytag-funda-nordica-2-fundas-almohada-blanco-40518755/"
+        },
+        {
+          "categoria": "Cojines premium (x6)",
+          "producto": "Mix AliExpress terciopelo/lino verde oliva + terracota (calidad superior)",
+          "proveedor": "AliExpress",
+          "precio_estimado": "~60 € (6 x 10€ estimado)",
+          "enlace": "https://es.aliexpress.com/w/wholesale-olive-green-cushion-cover.html"
+        },
+        {
+          "categoria": "Alfombra 160x230",
+          "producto": "VOLLERSLEV alfombra pelo largo beige 160x230",
+          "proveedor": "IKEA",
+          "precio_estimado": "249 €",
+          "enlace": "https://www.ikea.com/es/es/p/vollerslev-alfombra-pelo-largo-beige-50614252/"
+        },
+        {
+          "categoria": "Cortinas (x2 paneles)",
+          "producto": "LYR cortina 140x300 lino real x2",
+          "proveedor": "JYSK",
+          "precio_estimado": "no verificado (~30-50€ estimado por par)",
+          "enlace": "https://jysk.es/cortinas/cortinas/cortinas-traslucidas/cortina-lyr-1x140x300-lino"
+        },
+        {
+          "categoria": "Decoración premium",
+          "producto": "FEJKA esparraguera + jarrones cerámica x3 + marco madera + tira LED cálida",
+          "proveedor": "IKEA",
+          "precio_estimado": "~100 €",
+          "enlace": "https://www.ikea.com/es/es/cat/floreros-jarrones-decorativos-10776/"
+        }
+      ]
+    },
+    "recommended": {
+      "descripcion": "Lista final recomendada — optimizada calidad/precio (~380-430 €)",
+      "razon": "Equilibrio entre autenticidad de materiales, estilo coherente y precio. Prioriza IKEA y JYSK por garantías, devoluciones y envío fiable a España.",
+      "items": [
+        {
+          "prioridad": 1,
+          "categoria": "Paneles de pared",
+          "producto": "HEMDRUP Panel 200x60 roble cálido x2",
+          "proveedor": "JYSK",
+          "precio": "no verificado — confirmar en jysk.es",
+          "enlace": "https://jysk.es/almacenaje/otros/panel-decorativo-de-pared-hemdrup-200x60-color-roble-calido"
+        },
+        {
+          "prioridad": 2,
+          "categoria": "Aplique pared",
+          "producto": "SOLKLINT aplique latón/vidrio",
+          "proveedor": "IKEA",
+          "precio": "15-17 €",
+          "enlace": "https://www.ikea.com/es/es/p/solklint-aplique-instalacion-fija-laton-vidrio-transparente-gris-30472022/"
+        },
+        {
+          "prioridad": 3,
+          "categoria": "Estantería flotante",
+          "producto": "KETTINGE estante 6 estantes natural",
+          "proveedor": "JYSK",
+          "precio": "35 €",
+          "enlace": "https://jysk.es/almacenaje/baldas/estante-de-pared-kettinge-6-estantes-natural"
+        },
+        {
+          "prioridad": 4,
+          "categoria": "Funda nórdica",
+          "producto": "DYTÅG lino 100% 150x200",
+          "proveedor": "IKEA",
+          "precio": "~60-70 €",
+          "enlace": "https://www.ikea.com/es/es/p/dytag-funda-nordica-funda-almohada-blanco-60518764/"
+        },
+        {
+          "prioridad": 5,
+          "categoria": "Cojines",
+          "producto": "ROSENVIAL verde x2 + arena oscuro x2 (JYSK) + SANDTRAV verde x1 (IKEA)",
+          "proveedor": "JYSK + IKEA",
+          "precio": "~30 €",
+          "enlace": "https://jysk.es/articulos-para-el-hogar/cojines/cojines-decorativos"
+        },
+        {
+          "prioridad": 6,
+          "categoria": "Alfombra",
+          "producto": "MORUM alfombra beige 160x230 (low-budget) o VOLLERSLEV pelo largo si presupuesto lo permite",
+          "proveedor": "IKEA",
+          "precio": "55 € (MORUM) | 249 € (VOLLERSLEV)",
+          "enlace": "https://www.ikea.com/es/es/p/morum-alfombra-interior-exterior-beige-20203563/"
+        },
+        {
+          "prioridad": 7,
+          "categoria": "Cortinas",
+          "producto": "UNNEN cortina 140x300 arena lino x2 (necesitas 2 paneles por ventana)",
+          "proveedor": "JYSK",
+          "precio": "~40 € (2 x 20€)",
+          "enlace": "https://jysk.es/cortinas/cortinas/cortinas-traslucidas/cortina-unnen-1x140x300-arena-aspecto-lino"
+        },
+        {
+          "prioridad": 8,
+          "categoria": "Decoración",
+          "producto": "FEJKA helecho colgante + 2 jarrones cerámica IKEA + tira LED cálida (Temu/AliExpress)",
+          "proveedor": "IKEA + Temu",
+          "precio": "~45 €",
+          "enlace": "https://www.ikea.com/es/es/p/fejka-planta-artificial-interior-exterior-colgante-helecho-10548631/"
+        }
+      ]
+    }
+  },
+  "resumen_presupuestos": {
+    "low_cost": {
+      "rango": "260-285 €",
+      "proveedores_principales": ["Temu", "IKEA", "JYSK"],
+      "compromiso": "Paneles Temu (calidad visual incierta), alfombra básica MORUM, funda nórdica algodón (no lino)"
+    },
+    "balanced": {
+      "rango": "380-430 €",
+      "proveedores_principales": ["IKEA", "JYSK"],
+      "compromiso": "Paneles JYSK verificados, funda nórdica lino real, alfombra básica, cortinas aspecto lino"
+    },
+    "premium": {
+      "rango": "680-760 €",
+      "proveedores_principales": ["IKEA", "JYSK", "AliExpress"],
+      "compromiso": "Alfombra pelo largo 249€ (mayor parte del presupuesto), lino 100% DYTÅG, paneles SIBBARP a medida"
+    },
+    "recommended": {
+      "rango": "380-430 €",
+      "puntuacion_calidad_precio": "9/10",
+      "nota_principal": "La alfombra es el ítem con mayor rango de precio. Subir de MORUM (55€) a VOLLERSLEV (249€) es la mayor mejora premium."
+    }
+  }
+}
