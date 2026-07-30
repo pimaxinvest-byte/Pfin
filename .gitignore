@@ -2,4 +2,5 @@
 *.dll
 sa-dashboard
 .env
-.claude/
+.claude/*
+!.claude/skills/
