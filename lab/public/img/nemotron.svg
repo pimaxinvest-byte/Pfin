@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 48" role="img" aria-label="Powered by NVIDIA Nemotron">
+  <rect x="0" y="8" width="32" height="32" rx="4" fill="#76B900"/>
+  <text x="6" y="30" fill="#111" font-family="IBM Plex Sans, Avenir, Helvetica, sans-serif" font-size="16" font-weight="700">N</text>
+  <text x="42" y="20" fill="#9AD3E0" font-family="IBM Plex Sans, Avenir, Helvetica, sans-serif" font-size="9" letter-spacing="1.4">POWERED BY</text>
+  <text x="42" y="36" fill="#76B900" font-family="IBM Plex Sans, Avenir, Helvetica, sans-serif" font-size="15" font-weight="700" letter-spacing="0.4">NVIDIA NEMOTRON</text>
+</svg>
