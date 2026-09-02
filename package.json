@@ -1,0 +1,14 @@
+{
+  "name": "pimax-lab",
+  "private": true,
+  "description": "Pimax Invest Lab — Canada-Spain. Do not start gym from this root.",
+  "scripts": {
+    "start": "node lab/server.js",
+    "build": "echo lab"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.16.3"
+  }
+}
