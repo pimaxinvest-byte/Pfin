@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Agencia · P-Quantum Lab Finance</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/css/app.css"/></head>
+<body>
+<header class="top"><div class="brand"><b>P-QUANTUM LAB FINANCE</b><small>Backend</small></div>
+<nav><a href="/">Lab</a><a href="/expediente">Expediente</a><a class="on" href="/agencia">Agencia</a></nav></header>
+<main class="wrap">
+<h1>Tarifario</h1>
+<div id="gate" class="aside" style="max-width:360px">
+<label class="l">PIN</label><input id="pin" type="password"/>
+<p><button class="btn primary" id="unlock" type="button">Entrar</button></p>
+</div>
+<div id="desk" class="hidden">
+<table class="fees" id="tariffs"></table>
+<div id="cases"></div>
+</div>
+</main>
+<script src="/js/engine.js"></script>
+<script>
+function render(){
+  tariffs.innerHTML="<tr><th>Servicio</th><th class='r'>EUR</th></tr>"+PFin.SERVICES.map(s=>`<tr><td>${s.es}</td><td class='r'>${s.fee}</td></tr>`).join("");
+  const cases=JSON.parse(localStorage.getItem("pfin_cases")||"[]").reverse();
+  casesbox = document.getElementById("cases");
+  document.getElementById("cases").innerHTML=cases.map(c=>`<p class='note'>${c.name||''} · ${c.email||''} · total ${c.s?PFin.money(c.s.total):''} · ${(c.s&&c.s.pack||[]).map(x=>x.es+' '+x.fee).join(' · ')}</p>`).join("")||"<p class='note'>Sin expedientes locales</p>";
+}
+unlock.onclick=async()=>{
+  const r=await fetch("/api/agency/unlock",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({pin:pin.value})});
+  if(!r.ok){alert("PIN incorrecto");return;}
+  sessionStorage.setItem("pfin_agency","1"); gate.classList.add("hidden"); desk.classList.remove("hidden"); render();
+};
+if(sessionStorage.getItem("pfin_agency")==="1"){gate.classList.add("hidden"); desk.classList.remove("hidden"); render();}
+</script></body></html>

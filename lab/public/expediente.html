@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Expediente · P-Quantum Lab Finance</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/css/app.css"/>
+</head>
+<body>
+<header class="top"><div class="brand"><b>P-QUANTUM LAB FINANCE</b><small>Cliente</small></div>
+<nav><a href="/">Lab</a><a class="on" href="/expediente">Expediente</a><a href="/agencia">Agencia</a></nav></header>
+<main class="wrap">
+<p class="kicker">Sin tarifas unitarias</p>
+<h1>Alta de expediente</h1>
+<p class="lead">El sistema elige el paquete. Usted ve un único presupuesto.</p>
+<div class="grid">
+<section>
+<label class="l">Email</label><input id="email" type="email"/>
+<div class="row"><div><label class="l">Nombre</label><input id="given"/></div><div><label class="l">Apellidos</label><input id="surnames"/></div></div>
+<div class="row"><div><label class="l">Pasaporte</label><input id="passNo"/></div><div><label class="l">Nacionalidad</label><input id="nationality" value="CAN"/></div></div>
+</section>
+<aside class="aside">
+<label class="l">Perfil</label>
+<select id="profile"><option value="retiree">Jubilado</option><option value="nomad">Nómada</option><option value="worker">Trabajo en ES</option></select>
+<label class="l">Destino</label>
+<select id="dest"><option value="andalucia">Andalucía</option><option value="madrid">Madrid</option><option value="valencia">Valencia</option><option value="cataluna">Cataluña</option><option value="otras">Otra</option></select>
+<label class="l">Días en España</label><input id="days" type="number" value="220"/>
+<div class="meter"><i id="dayBar"></i></div>
+<label class="l">CAD→EUR</label><input id="fx" type="number" step="0.01" value="0.65"/>
+<div class="row"><div><label class="l">OAS</label><input id="oas" type="number" value="8500"/></div><div><label class="l">CPP</label><input id="cpp" type="number" value="14000"/></div></div>
+<div class="row"><div><label class="l">RRIF</label><input id="rrif" type="number" value="18000"/></div><div><label class="l">TFSA</label><input id="tfsa" type="number" value="1200"/></div></div>
+<div class="row"><div><label class="l">Patrimonio</label><input id="wealth" type="number" value="400000"/></div><div><label class="l">Edad</label><input id="age" type="number" value="67"/></div></div>
+<label class="l">Familiares</label><input id="family" type="number" value="0"/>
+<p><button class="btn primary" type="button" id="go">Calcular presupuesto</button></p>
+</aside></div>
+<section id="out"></section>
+</main>
+<script src="/js/engine.js"></script>
+<script>
+function inp(){return {profile:profile.value,dest:dest.value,days:days.value,fx:fx.value,oas:oas.value,cpp:cpp.value,rrif:rrif.value,tfsa:tfsa.value,wealth:wealth.value,age:age.value,family:family.value,fromAbroad:true};}
+function bar(){const d=+days.value||0; dayBar.style.width=Math.min(100,d/183*100)+"%"; dayBar.style.background=d>183?"#d36b6b":"#7ed9b0";}
+days.oninput=bar; bar();
+go.onclick=()=>{
+  if(!email.value.includes("@")){alert("Email obligatorio");return;}
+  const s=PFin.snapshot(inp(),"es");
+  const name=(given.value+" "+surnames.value).trim()||"—";
+  out.innerHTML=`<p class="kicker">Resultado</p><h2>${name}</h2><div>${PFin.taxChart(s)}</div>
+  <div class="kpis"><div class="kpi"><span>IRPF neto</span><b>${PFin.money(s.irpfNet)}</b></div>
+  <div class="kpi"><span>Retención CA</span><b>${PFin.money(s.canWH)}</b></div>
+  <div class="kpi"><span>Presupuesto</span><b>${PFin.money(s.total)}</b></div></div>
+  <ul>${s.pack.map(x=>"<li>"+x.es+"</li>").join("")}</ul>
+  <p class="total">${PFin.money(s.total)}</p>
+  <p class="note">Sin honorarios por partida. Detalle en /agencia.</p>`;
+  const cases=JSON.parse(localStorage.getItem("pfin_cases")||"[]");
+  cases.push({email:email.value,name,s,at:new Date().toISOString()});
+  localStorage.setItem("pfin_cases",JSON.stringify(cases.slice(-40)));
+};
+</script></body></html>
