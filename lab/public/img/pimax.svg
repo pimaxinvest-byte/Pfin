@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 200" role="img" aria-label="Pimax Invest">
+  <rect width="560" height="200" fill="#007096"/>
+  <text x="36" y="118" fill="#6FE4F0" font-family="Montserrat, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="92" font-weight="600" letter-spacing="-1.5">Pimax</text>
+  <text x="268" y="168" fill="#6FE4F0" font-family="Montserrat, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="42" font-weight="500">Invest</text>
+  <rect x="268" y="176" width="138" height="3.5" fill="#6FE4F0"/>
+</svg>
