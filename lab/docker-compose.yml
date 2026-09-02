@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pfin
+      POSTGRES_PASSWORD: pfin
+      POSTGRES_DB: pfin
+    ports:
+      - "5432:5432"
+    volumes:
+      - pfin_pg:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+volumes:
+  pfin_pg:

@@ -1,30 +1,19 @@
 # P-Quantum Lab Finance (`lab/`)
 
-Sitio de expediente Canadá–España dentro del monorepo [Pfin](https://github.com/pimaxinvest-byte/Pfin).
+## PostgreSQL
 
-## Qué ve cada lado
+Tablas: `clients`, `cases`, `case_services`, `documents`, `quotes`, `service_catalog`, `agency_users`.
 
-- **Cliente** (`/expediente`): paquete recomendado automáticamente + **un solo total**. No hay tarifas por servicio.
-- **Agencia** (`/agencia`): tarifario unitario (media Costa del Sol +33 %) + IVA + tasas + expedientes locales. PIN.
-
-El motor elige NIE, no lucrativa (jubilado), empadronamiento, TIE, apostilla, traducción, modelo 100 si >183 días, 720 si patrimonio ≥ 50.000 €, 714 solo si CCAA sin bonus y patrimonio alto.
-
-## Arranque local
+Local:
 
 ```bash
 cd lab
+docker compose up -d
+cp .env.example .env
 npm install
-AGENCY_PIN=pimax2026 npm start
+npm start
 ```
 
-http://localhost:3000
+Railway: plugin PostgreSQL + `DATABASE_URL` + `AGENCY_PIN`. Root directory `lab`. El schema se aplica al arrancar.
 
-## Railway
-
-1. New Project → Deploy from GitHub → `pimaxinvest-byte/Pfin`
-2. **Root Directory:** `lab`
-3. Variable `AGENCY_PIN` (obligatoria en producción)
-4. Healthcheck: `/api/health`
-5. Start: `node server.js` (ya en `railway.json`)
-
-Este servicio es independiente de `diet/` y `gym/`.
+API: POST /api/cases · GET /api/cases/:ref-o-email · GET /api/agency/cases · GET /api/agency/catalog
