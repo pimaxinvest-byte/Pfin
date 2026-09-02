@@ -1,58 +1,238 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Expediente · P-Quantum Lab Finance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/css/app.css"/>
 </head>
 <body>
-<header class="top"><div class="brand"><b>P-QUANTUM LAB FINANCE</b><small>Cliente</small></div>
-<nav><a href="/">Lab</a><a class="on" href="/expediente">Expediente</a><a href="/agencia">Agencia</a></nav></header>
+<header class="top">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="8" fill="#1c2327"/><path d="M18 48V16h16a12 12 0 0 1 0 24H18" fill="none" stroke="#7ed9b0" stroke-width="5"/></svg>
+    <div><b>P-QUANTUM LAB FINANCE</b><small>Expediente cliente</small></div>
+  </div>
+  <nav>
+    <a href="/">Lab</a>
+    <a class="on" href="/expediente">Expediente</a>
+    <a href="/agencia">Agencia</a>
+  </nav>
+</header>
 <main class="wrap">
-<p class="kicker">Sin tarifas unitarias</p>
-<h1>Alta de expediente</h1>
-<p class="lead">El sistema elige el paquete. Usted ve un único presupuesto.</p>
-<div class="grid">
-<section>
-<label class="l">Email</label><input id="email" type="email"/>
-<div class="row"><div><label class="l">Nombre</label><input id="given"/></div><div><label class="l">Apellidos</label><input id="surnames"/></div></div>
-<div class="row"><div><label class="l">Pasaporte</label><input id="passNo"/></div><div><label class="l">Nacionalidad</label><input id="nationality" value="CAN"/></div></div>
-</section>
-<aside class="aside">
-<label class="l">Perfil</label>
-<select id="profile"><option value="retiree">Jubilado</option><option value="nomad">Nómada</option><option value="worker">Trabajo en ES</option></select>
-<label class="l">Destino</label>
-<select id="dest"><option value="andalucia">Andalucía</option><option value="madrid">Madrid</option><option value="valencia">Valencia</option><option value="cataluna">Cataluña</option><option value="otras">Otra</option></select>
-<label class="l">Días en España</label><input id="days" type="number" value="220"/>
-<div class="meter"><i id="dayBar"></i></div>
-<label class="l">CAD→EUR</label><input id="fx" type="number" step="0.01" value="0.65"/>
-<div class="row"><div><label class="l">OAS</label><input id="oas" type="number" value="8500"/></div><div><label class="l">CPP</label><input id="cpp" type="number" value="14000"/></div></div>
-<div class="row"><div><label class="l">RRIF</label><input id="rrif" type="number" value="18000"/></div><div><label class="l">TFSA</label><input id="tfsa" type="number" value="1200"/></div></div>
-<div class="row"><div><label class="l">Patrimonio</label><input id="wealth" type="number" value="400000"/></div><div><label class="l">Edad</label><input id="age" type="number" value="67"/></div></div>
-<label class="l">Familiares</label><input id="family" type="number" value="0"/>
-<p><button class="btn primary" type="button" id="go">Calcular presupuesto</button></p>
-</aside></div>
-<section id="out"></section>
+  <p class="kicker">Cliente · sin tarifas unitarias</p>
+  <h1>Alta de expediente</h1>
+  <p class="lead">Suba una foto nítida de la página de datos del pasaporte (banda MRZ abajo). El sistema rellena nombre, apellidos, número y nacionalidad.</p>
+  <div class="grid">
+    <section>
+      <label class="l">Email</label><input id="email" type="email" autocomplete="email"/>
+      <div class="row">
+        <div><label class="l">Nombre</label><input id="given" autocomplete="given-name"/></div>
+        <div><label class="l">Apellidos</label><input id="surnames" autocomplete="family-name"/></div>
+      </div>
+      <div class="row">
+        <div><label class="l">Pasaporte</label><input id="passNo"/></div>
+        <div><label class="l">Nacionalidad</label><input id="nationality" value="CAN"/></div>
+      </div>
+      <label class="l" for="passFile">Foto del pasaporte (JPG/PNG — no PDF)</label>
+      <label class="drop" id="passDrop" for="passFile">
+        Pulsar o soltar la página de datos · OCR en el navegador
+        <input id="passFile" type="file" accept="image/jpeg,image/png,image/webp,image/*"/>
+      </label>
+      <p id="ocrStatus" class="note" style="border:0;margin:8px 0 0;padding:0">Todavía no hay foto. Use la página con la doble línea <<< abajo.</p>
+      <label class="l" for="docFiles">Más documentos (cualquier país)</label>
+      <label class="drop" id="docDrop" for="docFiles">
+        Fiscal, laboral u otros
+        <input id="docFiles" type="file" multiple accept="image/*,.pdf,.txt"/>
+      </label>
+      <div id="docList"></div>
+    </section>
+    <aside class="aside">
+      <label class="l">Perfil</label>
+      <select id="profile">
+        <option value="retiree">Jubilado / rentista</option>
+        <option value="nomad">Trabajo remoto / nómada</option>
+        <option value="worker">Va a trabajar en España</option>
+      </select>
+      <label class="l">Destino</label>
+      <select id="dest">
+        <option value="andalucia">Andalucía · Costa del Sol</option>
+        <option value="madrid">Madrid</option>
+        <option value="valencia">C. Valenciana</option>
+        <option value="cataluna">Cataluña</option>
+        <option value="canarias">Canarias</option>
+        <option value="otras">Otra CCAA</option>
+      </select>
+      <label class="l">Días en España</label>
+      <input id="days" type="number" value="220" min="0" max="366"/>
+      <div class="meter"><i id="dayBar"></i></div>
+      <label class="l">CAD → EUR</label><input id="fx" type="number" step="0.01" value="0.65"/>
+      <div class="row"><div><label class="l">OAS CAD/y</label><input id="oas" type="number" value="8500"/></div><div><label class="l">CPP/QPP</label><input id="cpp" type="number" value="14000"/></div></div>
+      <div class="row"><div><label class="l">RRIF/RRSP</label><input id="rrif" type="number" value="18000"/></div><div><label class="l">TFSA yield</label><input id="tfsa" type="number" value="1200"/></div></div>
+      <div class="row"><div><label class="l">Patrimonio EUR</label><input id="wealth" type="number" value="400000"/></div><div><label class="l">Edad</label><input id="age" type="number" value="67"/></div></div>
+      <label class="l">Familiares a cargo</label>
+      <input id="family" type="number" value="0" min="0"/>
+      <p style="margin-top:16px"><button class="btn primary" type="button" id="go">Calcular presupuesto</button></p>
+    </aside>
+  </div>
+  <section id="out" style="margin-top:40px"></section>
 </main>
+<footer>El cliente no ve honorarios por partida. No es asesoramiento jurídico.</footer>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="/js/engine.js"></script>
 <script>
-function inp(){return {profile:profile.value,dest:dest.value,days:days.value,fx:fx.value,oas:oas.value,cpp:cpp.value,rrif:rrif.value,tfsa:tfsa.value,wealth:wealth.value,age:age.value,family:family.value,fromAbroad:true};}
-function bar(){const d=+days.value||0; dayBar.style.width=Math.min(100,d/183*100)+"%"; dayBar.style.background=d>183?"#d36b6b":"#7ed9b0";}
-days.oninput=bar; bar();
-go.onclick=()=>{
-  if(!email.value.includes("@")){alert("Email obligatorio");return;}
-  const s=PFin.snapshot(inp(),"es");
-  const name=(given.value+" "+surnames.value).trim()||"—";
-  out.innerHTML=`<p class="kicker">Resultado</p><h2>${name}</h2><div>${PFin.taxChart(s)}</div>
-  <div class="kpis"><div class="kpi"><span>IRPF neto</span><b>${PFin.money(s.irpfNet)}</b></div>
-  <div class="kpi"><span>Retención CA</span><b>${PFin.money(s.canWH)}</b></div>
-  <div class="kpi"><span>Presupuesto</span><b>${PFin.money(s.total)}</b></div></div>
-  <ul>${s.pack.map(x=>"<li>"+x.es+"</li>").join("")}</ul>
-  <p class="total">${PFin.money(s.total)}</p>
-  <p class="note">Sin honorarios por partida. Detalle en /agencia.</p>`;
+let LANG="es";
+const DOCS=[];
+function input(){
+  return {
+    profile: document.getElementById("profile").value,
+    dest: document.getElementById("dest").value,
+    days: document.getElementById("days").value,
+    fx: document.getElementById("fx").value,
+    oas: document.getElementById("oas").value,
+    cpp: document.getElementById("cpp").value,
+    rrif: document.getElementById("rrif").value,
+    tfsa: document.getElementById("tfsa").value,
+    wealth: document.getElementById("wealth").value,
+    age: document.getElementById("age").value,
+    family: document.getElementById("family").value,
+    fromAbroad: true
+  };
+}
+function syncBar(){
+  const d=Math.min(366,Math.max(0,Number(document.getElementById("days").value)||0));
+  const el=document.getElementById("dayBar");
+  el.style.width=Math.min(100,d/183*100)+"%";
+  el.style.background=d>183?"#d36b6b":"#7ed9b0";
+}
+document.getElementById("days").addEventListener("input",syncBar); syncBar();
+function status(msg){ document.getElementById("ocrStatus").textContent=msg; }
+function bindDrop(zoneId, inputId, handler){
+  const zone=document.getElementById(zoneId);
+  const input=document.getElementById(inputId);
+  zone.addEventListener("dragover",e=>{e.preventDefault(); zone.style.borderColor="#7ed9b0";});
+  zone.addEventListener("dragleave",()=>{zone.style.borderColor="";});
+  zone.addEventListener("drop",e=>{
+    e.preventDefault(); zone.style.borderColor="";
+    const files=e.dataTransfer.files; if(files&&files[0]) handler(files);
+  });
+  input.addEventListener("change",e=>{ if(e.target.files&&e.target.files[0]) handler(e.target.files); });
+}
+function loadImage(file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{URL.revokeObjectURL(url); resolve(img);};
+    img.onerror=()=>{URL.revokeObjectURL(url); reject(new Error("image"));};
+    img.src=url;
+  });
+}
+async function mrzSlice(file){
+  const img=await loadImage(file);
+  const canvas=document.createElement("canvas");
+  const y0=Math.floor(img.height*0.62);
+  canvas.width=Math.min(1600,img.width*2);
+  canvas.height=Math.min(700,Math.floor((img.height-y0)*2));
+  const ctx=canvas.getContext("2d");
+  ctx.filter="contrast(1.45) grayscale(1) brightness(1.08)";
+  ctx.drawImage(img,0,y0,img.width,img.height-y0,0,0,canvas.width,canvas.height);
+  return canvas;
+}
+function parseMRZ(text){
+  const lines=String(text||"").toUpperCase().replace(/ /g,"").split(/\n+/).map(l=>l.replace(/[^A-Z0-9<]/g,""));
+  const out={};
+  const l1=lines.find(l=>/^P[A-Z<][A-Z]{3}/.test(l) && l.length>=20) || (String(text).toUpperCase().replace(/\s+/g,"").match(/P[A-Z<][A-Z]{3}[A-Z<]{2,39}/)||[])[0];
+  const l2=lines.find(l=>/[A-Z0-9<]{8,9}\d?[A-Z]{3}\d{6}/.test(l)) || (String(text).toUpperCase().replace(/\s+/g,"").match(/[A-Z0-9<]{9}\d[A-Z]{3}\d{6,7}[MFX<]/)||[])[0];
+  if(l1){
+    out.nationality=l1.slice(2,5).replace(/</g,"");
+    const names=l1.slice(5).split("<<");
+    out.surnames=(names[0]||"").replace(/</g," ").replace(/\s+/g," ").trim();
+    out.given=(names[1]||"").replace(/</g," ").replace(/\s+/g," ").trim();
+  }
+  if(l2){
+    out.passNo=l2.slice(0,9).replace(/</g,"");
+    if(!out.nationality) out.nationality=l2.slice(10,13);
+  }
+  const loose=String(text).toUpperCase();
+  if(!out.passNo){
+    const n=loose.match(/\b([A-Z]{1,2}\d{6,8})\b/);
+    if(n) out.passNo=n[1];
+  }
+  return out;
+}
+async function ocrPassport(file){
+  if(!file.type || !file.type.startsWith("image")){
+    status("Use una foto JPG/PNG de la página de datos. El PDF no se lee en el navegador.");
+    return;
+  }
+  if(!window.Tesseract){
+    status("OCR no cargó (CDN). Complete los campos a mano o recargue la página.");
+    DOCS.push({name:file.name,kind:"passport"});
+    return;
+  }
+  status("Leyendo MRZ…");
+  let text="";
+  try{
+    const slice=await mrzSlice(file);
+    const a=await Tesseract.recognize(slice,"eng",{tessedit_char_whitelist:"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<"});
+    text=a.data.text||"";
+  }catch(e){}
+  if(!/P[A-Z<][A-Z]{3}/.test(text.replace(/\s+/g,""))){
+    try{
+      const b=await Tesseract.recognize(file,"eng+spa+fra");
+      text+=(b.data.text||"");
+    }catch(e){}
+  }
+  const m=parseMRZ(text);
+  if(m.surnames) document.getElementById("surnames").value=m.surnames;
+  if(m.given) document.getElementById("given").value=m.given;
+  if(m.nationality) document.getElementById("nationality").value=m.nationality;
+  if(m.passNo) document.getElementById("passNo").value=m.passNo;
+  const filled=["surnames","given","nationality","passNo"].filter(k=>m[k]);
+  status(filled.length
+    ? "Pasaporte leído: "+filled.join(", ")+". Revise y complete lo que falte."
+    : "Foto recibida, pero la banda MRZ no se leyó. Enfoque la doble línea <<< de abajo o rellene a mano.");
+  DOCS.push({name:file.name,kind:"passport",ocr:text.slice(0,400)});
+}
+function addDocs(files){
+  [...files].forEach(f=>DOCS.push({name:f.name,kind:"doc"}));
+  document.getElementById("docList").innerHTML=DOCS.map(d=>`<p class="note" style="margin:6px 0;padding:6px 0">${d.kind}: ${d.name}</p>`).join("");
+}
+bindDrop("passDrop","passFile",files=>ocrPassport(files[0]));
+bindDrop("docDrop","docFiles",addDocs);
+document.getElementById("go").onclick=()=>{
+  const email=document.getElementById("email").value.trim();
+  if(!email.includes("@")){alert("Email obligatorio");return;}
+  const s=PFin.snapshot(input(),LANG);
+  const name=(document.getElementById("given").value+" "+document.getElementById("surnames").value).trim()||"—";
+  const items=s.pack.map(x=>`<li>${x[LANG]||x.es}</li>`).join("");
+  document.getElementById("out").innerHTML=`
+    <p class="kicker">Resultado</p>
+    <p><span class="pill ${s.resident?"alert":"ok"}">${s.resident?"Previsible residente fiscal ES":"Previsible no residente"}</span></p>
+    <h2>${name}</h2>
+    <div class="chart-wrap">${PFin.taxChart(s)}</div>
+    <div class="kpis">
+      <div class="kpi"><span>IRPF neto tras FTC</span><b>${PFin.money(s.irpfNet,LANG)}</b></div>
+      <div class="kpi"><span>Retención CA est.</span><b>${PFin.money(s.canWH,LANG)}</b></div>
+      <div class="kpi"><span>Presupuesto de apertura</span><b>${PFin.money(s.total,LANG)}</b></div>
+    </div>
+    <h2>Paquete que el sistema considera necesario</h2>
+    <ul class="pack">${items}</ul>
+    <p class="total">${PFin.money(s.total,LANG)}</p>
+    <p class="note">Total profesional + IVA 21 % + tasas oficiales indicativas. Detalle en /agencia.</p>
+  `;
+  const payload={email,name,pass:document.getElementById("passNo").value,s,docs:DOCS,at:new Date().toISOString()};
+  localStorage.setItem("pfin_last", JSON.stringify(payload));
   const cases=JSON.parse(localStorage.getItem("pfin_cases")||"[]");
-  cases.push({email:email.value,name,s,at:new Date().toISOString()});
-  localStorage.setItem("pfin_cases",JSON.stringify(cases.slice(-40)));
+  cases.push(payload);
+  localStorage.setItem("pfin_cases", JSON.stringify(cases.slice(-40)));
+  fetch("/api/cases",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+    email, given:document.getElementById("given").value, surnames:document.getElementById("surnames").value,
+    nationality:document.getElementById("nationality").value, passport_no:document.getElementById("passNo").value,
+    dest_ccaa:s.dest, days_es:s.days, total_eur:s.total, irpf_net_eur:s.irpfNet, snapshot:s, documents:DOCS
+  })}).catch(()=>{});
 };
-</script></body></html>
+</script>
+</body>
+</html>
